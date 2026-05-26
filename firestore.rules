@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if the user is signed in
+    function isAdmin() {
+      return request.auth != null;
+    }
+
+    // Public content collections: Anyone can view, only logged-in admin can write/update/delete
+    match /programs/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /sessions/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /articles/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /resources/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /socialLinks/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Submissions: Anyone can submit new entries, only logged-in admin can read/update/delete
+    match /applications/{docId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /contacts/{docId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://insight.techfortfoundation.org/sitemap.xml
