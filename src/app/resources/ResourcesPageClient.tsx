@@ -11,6 +11,7 @@ import {
   GraduationCap,
   HelpCircle,
   Loader2,
+  Download,
 } from "lucide-react";
 import { dbGetResources, Resource } from "@/lib/db";
 
@@ -73,19 +74,36 @@ export default function ResourcesPageClient() {
         {resources.length > 0 ? (
           <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {resources.map((res, i) => {
-              const Icon = iconMap[res.icon] || HelpCircle;
+              const Icon = FileText;
+              const title = res.courseTitle;
+              const subtitle = res.resourceId;
+
               return (
-                <FadeIn key={res.id || res.title || i} delay={i * 0.04}>
-                  <div className="group h-full rounded-2xl border border-border bg-card p-7 shadow-card hover:shadow-elegant hover:-translate-y-0.5 transition-all">
-                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground shadow-elegant">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <h3 className="mt-5 text-lg font-display font-semibold text-foreground">
-                      {res.title}
-                    </h3>
-                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                      {res.desc}
-                    </p>
+                <FadeIn key={res.id || i} delay={i * 0.04}>
+                  <div className="group h-full rounded-2xl border border-border bg-card p-7 shadow-card hover:shadow-elegant hover:-translate-y-0.5 transition-all flex flex-col justify-between">
+                    <div>
+                      <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground shadow-elegant">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <h3 className="mt-5 text-lg font-display font-bold text-foreground">
+                        {title}
+                      </h3>
+                      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                        {subtitle}
+                      </p>
+                    </div>
+                    {res.pdfUrl && (
+                      <div className="mt-6 pt-4 border-t border-border/50">
+                        <a
+                          href={res.pdfUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <Download className="h-4 w-4" /> Download PDF
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </FadeIn>
               );

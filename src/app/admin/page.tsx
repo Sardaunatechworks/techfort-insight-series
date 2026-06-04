@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { dbOnAuthStateChanged, dbLogin, isMockMode, AdminUser } from "@/lib/db";
-import type { User } from "firebase/auth";
+import type { User } from "@supabase/supabase-js";
 import DashboardClient from "./DashboardClient";
 import { Loader2, Lock, Mail, Key, Shield } from "lucide-react";
 

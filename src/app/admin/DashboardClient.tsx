@@ -22,6 +22,18 @@ import {
   dbGetSocialLinks,
   dbSaveSocialLink,
   dbDeleteSocialLink,
+  dbGetPartners,
+  dbSavePartner,
+  dbDeletePartner,
+  dbGetSpeakers,
+  dbSaveSpeaker,
+  dbDeleteSpeaker,
+  dbGetTeamMembers,
+  dbSaveTeamMember,
+  dbDeleteTeamMember,
+  dbGetSiteSettings,
+  dbSaveSiteSettings,
+  dbUploadFile,
   AdminUser,
   Application,
   Contact,
@@ -30,8 +42,12 @@ import {
   Article,
   Resource,
   SocialLink,
+  Partner,
+  Speaker,
+  TeamMember,
+  SiteSettings,
 } from "@/lib/db";
-import type { User as FirebaseUser } from "firebase/auth";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
   Loader2,
   LogOut,
@@ -70,10 +86,12 @@ import {
   Twitter,
   Instagram,
   Mail,
+  Settings,
+  Upload,
 } from "lucide-react";
 
 interface DashboardClientProps {
-  user: AdminUser | FirebaseUser;
+  user: AdminUser | SupabaseUser;
 }
 
 type TabType =
@@ -83,7 +101,11 @@ type TabType =
   | "sessions"
   | "research"
   | "resources"
-  | "socials";
+  | "socials"
+  | "partners"
+  | "speakers"
+  | "team"
+  | "settings";
 
 export default function DashboardClient({ user }: DashboardClientProps) {
   const [activeTab, setActiveTab] = useState<TabType>("applications");
@@ -98,6 +120,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [speakers, setSpeakers] = useState<Speaker[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
   const [cmsLoading, setCmsLoading] = useState(false);
 
   // Search & filter states
@@ -107,10 +133,26 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   // Modal / Form state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<
-    "program" | "session" | "article" | "resource" | "social" | null
+    | "program"
+    | "session"
+    | "article"
+    | "resource"
+    | "social"
+    | "partner"
+    | "speaker"
+    | "team"
+    | null
   >(null);
   const [editingItem, setEditingItem] = useState<
-    Program | Session | Article | Resource | SocialLink | null
+    | Program
+    | Session
+    | Article
+    | Resource
+    | SocialLink
+    | Partner
+    | Speaker
+    | TeamMember
+    | null
   >(null);
   const [modalLoading, setModalLoading] = useState(false);
 
@@ -139,15 +181,47 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   });
 
   const [resourceForm, setResourceForm] = useState({
-    title: "",
-    desc: "",
-    icon: "GraduationCap", // GraduationCap, BookOpen, Wrench, FileText, Presentation, Library
+    courseTitle: "",
+    resourceId: "",
+    pdfFile: null as File | null,
+    pdfUrl: "",
   });
 
   const [socialForm, setSocialForm] = useState({
     platform: "",
     url: "",
     icon: "Globe", // Globe, Linkedin, Twitter, Instagram, Mail, Youtube, Github
+  });
+
+  const [partnerForm, setPartnerForm] = useState({
+    name: "",
+    logoFile: null as File | null,
+    logoUrl: "",
+  });
+
+  const [speakerForm, setSpeakerForm] = useState({
+    name: "",
+    shortBio: "",
+    date: "Coming Soon",
+    theme: "",
+    type: "upcoming" as "upcoming" | "past",
+    pictureFile: null as File | null,
+    pictureUrl: "",
+  });
+
+  const [teamForm, setTeamForm] = useState({
+    name: "",
+    role: "",
+    specialization: "",
+    linkedinUrl: "",
+    twitterUrl: "",
+    pictureFile: null as File | null,
+    pictureUrl: "",
+  });
+
+  const [settingsForm, setSettingsForm] = useState({
+    heroFile: null as File | null,
+    aboutHeroUrl: "",
   });
 
   // Load Realtime Data
@@ -175,12 +249,20 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       const arts = await dbGetArticles();
       const ress = await dbGetResources();
       const socs = await dbGetSocialLinks();
+      const parts = await dbGetPartners();
+      const spks = await dbGetSpeakers();
+      const tms = await dbGetTeamMembers();
+      const settings = await dbGetSiteSettings();
 
       setPrograms([...progs].sort((a, b) => (a.order || 0) - (b.order || 0)));
       setSessions([...sesss].sort((a, b) => (a.order || 0) - (b.order || 0)));
       setArticles([...arts].sort((a, b) => (a.order || 0) - (b.order || 0)));
       setResources([...ress].sort((a, b) => (a.order || 0) - (b.order || 0)));
       setSocialLinks([...socs].sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setPartners([...parts].sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setSpeakers([...spks].sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setTeamMembers([...tms].sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setSiteSettings(settings);
     } catch (e) {
       console.error("Error loading CMS data:", e);
     } finally {
@@ -201,7 +283,15 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
   // Open Add Modal
   const openAddModal = (
-    type: "program" | "session" | "article" | "resource" | "social",
+    type:
+      | "program"
+      | "session"
+      | "article"
+      | "resource"
+      | "social"
+      | "partner"
+      | "speaker"
+      | "team",
   ) => {
     setModalType(type);
     setEditingItem(null);
@@ -224,14 +314,54 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       status: "upcoming",
     });
     setArticleForm({ title: "", tag: "", excerpt: "" });
-    setResourceForm({ title: "", desc: "", icon: "GraduationCap" });
+    setResourceForm({
+      courseTitle: "",
+      resourceId: "",
+      pdfFile: null,
+      pdfUrl: "",
+    });
     setSocialForm({ platform: "", url: "", icon: "Globe" });
+    setPartnerForm({ name: "", logoFile: null, logoUrl: "" });
+    setSpeakerForm({
+      name: "",
+      shortBio: "",
+      date: "Coming Soon",
+      theme: "",
+      type: "upcoming",
+      pictureFile: null,
+      pictureUrl: "",
+    });
+    setTeamForm({
+      name: "",
+      role: "",
+      specialization: "",
+      linkedinUrl: "",
+      twitterUrl: "",
+      pictureFile: null,
+      pictureUrl: "",
+    });
   };
 
   // Open Edit Modal
   const openEditModal = (
-    type: "program" | "session" | "article" | "resource" | "social",
-    item: Program | Session | Article | Resource | SocialLink,
+    type:
+      | "program"
+      | "session"
+      | "article"
+      | "resource"
+      | "social"
+      | "partner"
+      | "speaker"
+      | "team",
+    item:
+      | Program
+      | Session
+      | Article
+      | Resource
+      | SocialLink
+      | Partner
+      | Speaker
+      | TeamMember,
   ) => {
     setModalType(type);
     setEditingItem(item);
@@ -266,9 +396,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     } else if (type === "resource") {
       const res = item as Resource;
       setResourceForm({
-        title: res.title || "",
-        desc: res.desc || "",
-        icon: res.icon || "GraduationCap",
+        courseTitle: res.courseTitle || "",
+        resourceId: res.resourceId || "",
+        pdfUrl: res.pdfUrl || "",
+        pdfFile: null,
       });
     } else if (type === "social") {
       const soc = item as SocialLink;
@@ -277,6 +408,35 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         url: soc.url || "",
         icon: soc.icon || "Globe",
       });
+    } else if (type === "partner") {
+      const part = item as Partner;
+      setPartnerForm({
+        name: part.name || "",
+        logoUrl: part.logoUrl || "",
+        logoFile: null,
+      });
+    } else if (type === "speaker") {
+      const spk = item as Speaker;
+      setSpeakerForm({
+        name: spk.name || "",
+        shortBio: spk.shortBio || "",
+        date: spk.date || "Coming Soon",
+        theme: spk.theme || "",
+        type: spk.type || "upcoming",
+        pictureUrl: spk.pictureUrl || "",
+        pictureFile: null,
+      });
+    } else if (type === "team") {
+      const tm = item as TeamMember;
+      setTeamForm({
+        name: tm.name || "",
+        role: tm.role || "",
+        specialization: tm.specialization || "",
+        linkedinUrl: tm.linkedinUrl || "",
+        twitterUrl: tm.twitterUrl || "",
+        pictureUrl: tm.pictureUrl || "",
+        pictureFile: null,
+      });
     }
   };
 
@@ -284,10 +444,13 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setModalLoading(true);
+    const basePayload = editingItem
+      ? ({ ...editingItem } as unknown as Record<string, unknown>)
+      : {};
     try {
       if (modalType === "program") {
         const payload = {
-          ...(editingItem as Program),
+          ...basePayload,
           title: programForm.title,
           tag: programForm.tag,
           overview: programForm.overview,
@@ -305,23 +468,67 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         await dbSaveProgram(payload);
       } else if (modalType === "session") {
         await dbSaveSession({
-          ...(editingItem as Session),
+          ...basePayload,
           ...sessionForm,
         });
       } else if (modalType === "article") {
         await dbSaveArticle({
-          ...(editingItem as Article),
+          ...basePayload,
           ...articleForm,
         });
       } else if (modalType === "resource") {
+        let pdfUrl = resourceForm.pdfUrl;
+        if (resourceForm.pdfFile) {
+          pdfUrl = await dbUploadFile(resourceForm.pdfFile, "resources");
+        }
         await dbSaveResource({
-          ...(editingItem as Resource),
-          ...resourceForm,
+          ...basePayload,
+          courseTitle: resourceForm.courseTitle,
+          resourceId: resourceForm.resourceId,
+          pdfUrl,
         });
       } else if (modalType === "social") {
         await dbSaveSocialLink({
-          ...(editingItem as SocialLink),
+          ...basePayload,
           ...socialForm,
+        });
+      } else if (modalType === "partner") {
+        let logoUrl = partnerForm.logoUrl;
+        if (partnerForm.logoFile) {
+          logoUrl = await dbUploadFile(partnerForm.logoFile, "partners");
+        }
+        await dbSavePartner({
+          ...basePayload,
+          name: partnerForm.name,
+          logoUrl,
+        });
+      } else if (modalType === "speaker") {
+        let pictureUrl = speakerForm.pictureUrl;
+        if (speakerForm.pictureFile) {
+          pictureUrl = await dbUploadFile(speakerForm.pictureFile, "speakers");
+        }
+        await dbSaveSpeaker({
+          ...basePayload,
+          name: speakerForm.name,
+          shortBio: speakerForm.shortBio,
+          date: speakerForm.date,
+          theme: speakerForm.theme,
+          type: speakerForm.type,
+          pictureUrl,
+        });
+      } else if (modalType === "team") {
+        let pictureUrl = teamForm.pictureUrl;
+        if (teamForm.pictureFile) {
+          pictureUrl = await dbUploadFile(teamForm.pictureFile, "team");
+        }
+        await dbSaveTeamMember({
+          ...basePayload,
+          name: teamForm.name,
+          role: teamForm.role,
+          specialization: teamForm.specialization,
+          linkedinUrl: teamForm.linkedinUrl,
+          twitterUrl: teamForm.twitterUrl,
+          pictureUrl,
         });
       }
       setIsModalOpen(false);
@@ -336,7 +543,15 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
   // Delete Item
   const handleDelete = async (
-    type: "program" | "session" | "article" | "resource" | "social",
+    type:
+      | "program"
+      | "session"
+      | "article"
+      | "resource"
+      | "social"
+      | "partner"
+      | "speaker"
+      | "team",
     id: string | undefined,
   ) => {
     if (!id) return;
@@ -352,6 +567,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       else if (type === "article") await dbDeleteArticle(id);
       else if (type === "resource") await dbDeleteResource(id);
       else if (type === "social") await dbDeleteSocialLink(id);
+      else if (type === "partner") await dbDeletePartner(id);
+      else if (type === "speaker") await dbDeleteSpeaker(id);
+      else if (type === "team") await dbDeleteTeamMember(id);
       await loadCMS();
     } catch (e) {
       console.error(e);
@@ -390,7 +608,11 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       | "sessions"
       | "research"
       | "resources"
-      | "socials";
+      | "socials"
+      | "partners"
+      | "speakers"
+      | "team"
+      | "settings";
     label: string;
     Icon: ComponentType<{ className?: string }>;
     count?: number;
@@ -414,6 +636,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     { id: "research", label: "CMS: Research", Icon: BookOpen },
     { id: "resources", label: "CMS: Resources", Icon: Wrench },
     { id: "socials", label: "CMS: Social Links", Icon: Share2 },
+    { id: "partners", label: "CMS: Partners", Icon: Building },
+    { id: "speakers", label: "CMS: Speakers", Icon: Presentation },
+    { id: "team", label: "CMS: Team", Icon: Users },
+    { id: "settings", label: "Settings", Icon: Settings },
   ];
 
   return (
@@ -521,10 +747,17 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 "Manage upcoming learning events and past sessions archive."}
               {activeTab === "research" &&
                 "Publish and edit policy reports, briefs, and founder logs."}
-              {activeTab === "resources" &&
-                "Update recommended software tools, slides, books and report files."}
+              {activeTab === "resources" && "Update recommended PDF resources."}
               {activeTab === "socials" &&
                 "Manage social platform coordinates, custom links, and layout icons."}
+              {activeTab === "partners" &&
+                "Manage partner logos and names displayed across the site."}
+              {activeTab === "speakers" &&
+                "Manage upcoming and past speakers for sessions."}
+              {activeTab === "team" &&
+                "Manage team members displayed on the About page."}
+              {activeTab === "settings" &&
+                "Manage global site settings like hero background images."}
             </p>
           </div>
 
@@ -538,6 +771,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               "research",
               "resources",
               "socials",
+              "partners",
+              "speakers",
+              "team",
             ].includes(activeTab) && (
               <button
                 onClick={() => {
@@ -546,6 +782,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   else if (activeTab === "research") openAddModal("article");
                   else if (activeTab === "resources") openAddModal("resource");
                   else if (activeTab === "socials") openAddModal("social");
+                  else if (activeTab === "partners") openAddModal("partner");
+                  else if (activeTab === "speakers") openAddModal("speaker");
+                  else if (activeTab === "team") openAddModal("team");
                 }}
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-elegant hover:shadow-glow transition-all"
               >
@@ -1109,20 +1348,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {resources.map((res) => {
-                  const iconNameMap: Record<
-                    string,
-                    ComponentType<{ className?: string }>
-                  > = {
-                    GraduationCap,
-                    BookOpen,
-                    Wrench,
-                    FileText,
-                    Presentation,
-                    Library,
-                  };
-                  const IconComponent =
-                    iconNameMap[res.icon || ""] || FolderOpen;
-
                   return (
                     <div
                       key={res.id}
@@ -1130,15 +1355,25 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     >
                       <div className="space-y-3">
                         <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground shadow-elegant">
-                          <IconComponent className="h-5 w-5" />
+                          <FileText className="h-5 w-5" />
                         </span>
                         <div>
                           <h3 className="font-bold text-foreground text-base truncate">
-                            {res.title}
+                            {res.courseTitle}
                           </h3>
-                          <p className="text-xs text-muted-foreground leading-relaxed mt-1 line-clamp-3">
-                            {res.desc}
+                          <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                            ID: {res.resourceId}
                           </p>
+                          {res.pdfUrl && (
+                            <a
+                              href={res.pdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline mt-1 inline-block"
+                            >
+                              View PDF ↗
+                            </a>
+                          )}
                         </div>
                       </div>
 
@@ -1245,6 +1480,315 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* 8. PARTNERS CMS TAB */}
+        {activeTab === "partners" && (
+          <div className="space-y-6">
+            {cmsLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : partners.length === 0 ? (
+              <div className="text-center py-20 border border-dashed border-border rounded-3xl">
+                <Building className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-foreground">
+                  No partners configured
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add your first partner above.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {partners.map((part) => (
+                  <div
+                    key={part.id}
+                    className="rounded-xl border border-border bg-card/45 p-5 shadow-card hover:border-primary/20 transition-all flex flex-col justify-between"
+                  >
+                    <div className="space-y-3">
+                      {part.logoUrl ? (
+                        <div className="h-12 w-12 rounded bg-background/50 border border-border/40 overflow-hidden flex items-center justify-center">
+                          <img
+                            src={part.logoUrl}
+                            alt={part.name}
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground shadow-elegant">
+                          <Building className="h-5 w-5" />
+                        </span>
+                      )}
+                      <div>
+                        <h3 className="font-bold text-foreground text-base truncate">
+                          {part.name}
+                        </h3>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-1.5 mt-5 pt-3 border-t border-border/40">
+                      <button
+                        onClick={() => openEditModal("partner", part)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-foreground hover:bg-card transition-all"
+                        title="Edit Partner"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete("partner", part.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-all"
+                        title="Delete Partner"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 9. SPEAKERS CMS TAB */}
+        {activeTab === "speakers" && (
+          <div className="space-y-6">
+            {cmsLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : speakers.length === 0 ? (
+              <div className="text-center py-20 border border-dashed border-border rounded-3xl">
+                <Presentation className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-foreground">
+                  No speakers configured
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add your first speaker above.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {speakers.map((spk) => (
+                  <div
+                    key={spk.id}
+                    className="rounded-xl border border-border bg-card/45 p-5 shadow-card hover:border-primary/20 transition-all flex flex-col justify-between"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        {spk.pictureUrl ? (
+                          <img
+                            src={spk.pictureUrl}
+                            alt={spk.name}
+                            className="h-12 w-12 rounded-full object-cover border border-border"
+                          />
+                        ) : (
+                          <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground shadow-elegant">
+                            <User className="h-5 w-5" />
+                          </span>
+                        )}
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${spk.type === "upcoming" ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted/40 text-muted-foreground border border-border"}`}
+                        >
+                          {spk.type}
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-foreground text-base truncate">
+                          {spk.name}
+                        </h3>
+                        <p className="text-xs font-mono text-muted-foreground mt-0.5 truncate">
+                          {spk.theme} | {spk.date}
+                        </p>
+                        <p className="text-xs text-muted-foreground leading-relaxed mt-2 line-clamp-2">
+                          {spk.shortBio}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-1.5 mt-5 pt-3 border-t border-border/40">
+                      <button
+                        onClick={() => openEditModal("speaker", spk)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-foreground hover:bg-card transition-all"
+                        title="Edit Speaker"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete("speaker", spk.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-all"
+                        title="Delete Speaker"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 10. TEAM CMS TAB */}
+        {activeTab === "team" && (
+          <div className="space-y-6">
+            {cmsLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : teamMembers.length === 0 ? (
+              <div className="text-center py-20 border border-dashed border-border rounded-3xl">
+                <Users className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-foreground">
+                  No team members configured
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add your first team member above.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {teamMembers.map((tm) => (
+                  <div
+                    key={tm.id}
+                    className="rounded-xl border border-border bg-card/45 p-5 shadow-card hover:border-primary/20 transition-all flex flex-col justify-between items-center text-center"
+                  >
+                    <div className="space-y-3 w-full flex flex-col items-center">
+                      {tm.pictureUrl ? (
+                        <img
+                          src={tm.pictureUrl}
+                          alt={tm.name}
+                          className="h-16 w-16 rounded-full object-cover border border-border"
+                        />
+                      ) : (
+                        <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground shadow-elegant">
+                          <User className="h-6 w-6" />
+                        </span>
+                      )}
+                      <div>
+                        <h3 className="font-bold text-foreground text-base truncate w-full">
+                          {tm.name}
+                        </h3>
+                        <p className="text-xs text-primary font-semibold mt-0.5 truncate w-full">
+                          {tm.role}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate w-full">
+                          {tm.specialization}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-center gap-1.5 mt-5 w-full pt-3 border-t border-border/40">
+                      <button
+                        onClick={() => openEditModal("team", tm)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-foreground hover:bg-card transition-all"
+                        title="Edit Team Member"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete("team", tm.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-all"
+                        title="Delete Team Member"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 11. SETTINGS TAB */}
+        {activeTab === "settings" && (
+          <div className="space-y-6 max-w-2xl">
+            <div className="rounded-2xl border border-border bg-card/45 p-6 shadow-card">
+              <h2 className="text-xl font-bold mb-4">Global Site Settings</h2>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setCmsLoading(true);
+                  try {
+                    let aboutHeroUrl = siteSettings?.aboutHeroUrl || "";
+                    if (settingsForm.heroFile) {
+                      aboutHeroUrl = await dbUploadFile(
+                        settingsForm.heroFile,
+                        "settings",
+                      );
+                    }
+                    await dbSaveSiteSettings({
+                      ...(siteSettings || {}),
+                      aboutHeroUrl,
+                    });
+                    setSettingsForm({ heroFile: null, aboutHeroUrl });
+                    await loadCMS();
+                    alert("Settings saved successfully.");
+                  } catch (err) {
+                    console.error(err);
+                    alert("Failed to save settings.");
+                  } finally {
+                    setCmsLoading(false);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    About Page Hero Background Image
+                  </label>
+                  {siteSettings?.aboutHeroUrl && (
+                    <div className="mb-2 w-full h-32 rounded-xl border border-border overflow-hidden">
+                      <img
+                        src={siteSettings.aboutHeroUrl}
+                        alt="Hero"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl cursor-pointer hover:bg-primary/10 transition-colors text-sm font-medium">
+                      <Upload className="h-4 w-4" />
+                      Choose Image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setSettingsForm({
+                              ...settingsForm,
+                              heroFile: e.target.files[0],
+                            });
+                          }
+                        }}
+                      />
+                    </label>
+                    <span className="text-sm text-muted-foreground">
+                      {settingsForm.heroFile
+                        ? settingsForm.heroFile.name
+                        : "No new file selected"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border/40">
+                  <button
+                    type="submit"
+                    disabled={cmsLoading}
+                    className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-elegant hover:shadow-glow transition-all disabled:opacity-50"
+                  >
+                    {cmsLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Save Settings"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </main>
@@ -1465,10 +2009,14 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    <label
+                      htmlFor="session-status"
+                      className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                    >
                       Status
                     </label>
                     <select
+                      id="session-status"
                       value={sessionForm.status}
                       onChange={(e) =>
                         setSessionForm({
@@ -1553,67 +2101,72 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Resource Title
+                      Course / Resource Title
                     </label>
                     <input
                       type="text"
                       required
-                      value={resourceForm.title}
+                      value={resourceForm.courseTitle}
                       onChange={(e) =>
                         setResourceForm({
                           ...resourceForm,
-                          title: e.target.value,
+                          courseTitle: e.target.value,
                         })
                       }
-                      placeholder="e.g. Reading Lists"
+                      placeholder="e.g. AI Foundations"
                       className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Description
+                      Resource ID / Short Name
                     </label>
-                    <textarea
+                    <input
+                      type="text"
                       required
-                      rows={3}
-                      value={resourceForm.desc}
+                      value={resourceForm.resourceId}
                       onChange={(e) =>
                         setResourceForm({
                           ...resourceForm,
-                          desc: e.target.value,
+                          resourceId: e.target.value,
                         })
                       }
-                      placeholder="Description of links, documents, or content offered..."
+                      placeholder="e.g. RES-001"
                       className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Lucide Display Icon
+                      PDF Resource File
                     </label>
-                    <select
-                      value={resourceForm.icon}
-                      onChange={(e) =>
-                        setResourceForm({
-                          ...resourceForm,
-                          icon: e.target.value,
-                        })
-                      }
-                      className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
-                    >
-                      <option value="GraduationCap">
-                        Graduation Cap (Learning)
-                      </option>
-                      <option value="BookOpen">Open Book (Readings)</option>
-                      <option value="Wrench">Wrench (Tools)</option>
-                      <option value="FileText">File/Paper (Reports)</option>
-                      <option value="Presentation">
-                        Presentation (Slides)
-                      </option>
-                      <option value="Library">Library (Resources)</option>
-                    </select>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl cursor-pointer hover:bg-primary/10 transition-colors text-sm font-medium">
+                        <Upload className="h-4 w-4" />
+                        Choose PDF
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setResourceForm({
+                                ...resourceForm,
+                                pdfFile: e.target.files[0],
+                              });
+                            }
+                          }}
+                        />
+                      </label>
+                      <span className="text-sm text-muted-foreground truncate max-w-[200px]">
+                        {resourceForm.pdfFile
+                          ? resourceForm.pdfFile.name
+                          : resourceForm.pdfUrl
+                            ? "Existing PDF"
+                            : "No file selected"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1660,10 +2213,14 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    <label
+                      htmlFor="social-icon"
+                      className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                    >
                       Lucide Display Icon
                     </label>
                     <select
+                      id="social-icon"
                       value={socialForm.icon}
                       onChange={(e) =>
                         setSocialForm({
@@ -1681,6 +2238,321 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                       <option value="Youtube">Youtube</option>
                       <option value="Github">Github</option>
                     </select>
+                  </div>
+                </div>
+              )}
+
+              {/* PARTNERS FORM FIELDS */}
+              {modalType === "partner" && (
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Partner Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={partnerForm.name}
+                      onChange={(e) =>
+                        setPartnerForm({ ...partnerForm, name: e.target.value })
+                      }
+                      placeholder="e.g. Google"
+                      className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Partner Logo
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl cursor-pointer hover:bg-primary/10 transition-colors text-sm font-medium">
+                        <Upload className="h-4 w-4" />
+                        Choose Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setPartnerForm({
+                                ...partnerForm,
+                                logoFile: e.target.files[0],
+                              });
+                            }
+                          }}
+                        />
+                      </label>
+                      <span className="text-sm text-muted-foreground">
+                        {partnerForm.logoFile
+                          ? partnerForm.logoFile.name
+                          : partnerForm.logoUrl
+                            ? "Existing Image"
+                            : "No file selected"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SPEAKERS FORM FIELDS */}
+              {modalType === "speaker" && (
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Speaker Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={speakerForm.name}
+                        onChange={(e) =>
+                          setSpeakerForm({
+                            ...speakerForm,
+                            name: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. Dr. Jane Doe"
+                        className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Date
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={speakerForm.date}
+                        onChange={(e) =>
+                          setSpeakerForm({
+                            ...speakerForm,
+                            date: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. Oct 12, 2026"
+                        className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Theme / Topic
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={speakerForm.theme}
+                        onChange={(e) =>
+                          setSpeakerForm({
+                            ...speakerForm,
+                            theme: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. AI Ethics"
+                        className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label
+                        htmlFor="speaker-type"
+                        className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                      >
+                        Type (Upcoming vs Past)
+                      </label>
+                      <select
+                        id="speaker-type"
+                        value={speakerForm.type}
+                        onChange={(e) =>
+                          setSpeakerForm({
+                            ...speakerForm,
+                            type: e.target.value as "upcoming" | "past",
+                          })
+                        }
+                        className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                      >
+                        <option value="upcoming">Upcoming</option>
+                        <option value="past">Past</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Short Bio
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={speakerForm.shortBio}
+                      onChange={(e) =>
+                        setSpeakerForm({
+                          ...speakerForm,
+                          shortBio: e.target.value,
+                        })
+                      }
+                      placeholder="Brief description about the speaker..."
+                      className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Speaker Picture
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl cursor-pointer hover:bg-primary/10 transition-colors text-sm font-medium">
+                        <Upload className="h-4 w-4" />
+                        Choose Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setSpeakerForm({
+                                ...speakerForm,
+                                pictureFile: e.target.files[0],
+                              });
+                            }
+                          }}
+                        />
+                      </label>
+                      <span className="text-sm text-muted-foreground">
+                        {speakerForm.pictureFile
+                          ? speakerForm.pictureFile.name
+                          : speakerForm.pictureUrl
+                            ? "Existing Image"
+                            : "No file selected"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TEAM FORM FIELDS */}
+              {modalType === "team" && (
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={teamForm.name}
+                        onChange={(e) =>
+                          setTeamForm({ ...teamForm, name: e.target.value })
+                        }
+                        placeholder="e.g. John Smith"
+                        className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Role / Position
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={teamForm.role}
+                        onChange={(e) =>
+                          setTeamForm({ ...teamForm, role: e.target.value })
+                        }
+                        placeholder="e.g. Lead Engineer"
+                        className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Specialization
+                    </label>
+                    <input
+                      type="text"
+                      value={teamForm.specialization}
+                      onChange={(e) =>
+                        setTeamForm({
+                          ...teamForm,
+                          specialization: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. Full-stack, AI Research"
+                      className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                    />
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        LinkedIn URL
+                      </label>
+                      <input
+                        type="url"
+                        value={teamForm.linkedinUrl}
+                        onChange={(e) =>
+                          setTeamForm({
+                            ...teamForm,
+                            linkedinUrl: e.target.value,
+                          })
+                        }
+                        placeholder="https://linkedin.com/in/..."
+                        className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Twitter URL
+                      </label>
+                      <input
+                        type="url"
+                        value={teamForm.twitterUrl}
+                        onChange={(e) =>
+                          setTeamForm({
+                            ...teamForm,
+                            twitterUrl: e.target.value,
+                          })
+                        }
+                        placeholder="https://twitter.com/..."
+                        className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Profile Picture
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl cursor-pointer hover:bg-primary/10 transition-colors text-sm font-medium">
+                        <Upload className="h-4 w-4" />
+                        Choose Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setTeamForm({
+                                ...teamForm,
+                                pictureFile: e.target.files[0],
+                              });
+                            }
+                          }}
+                        />
+                      </label>
+                      <span className="text-sm text-muted-foreground">
+                        {teamForm.pictureFile
+                          ? teamForm.pictureFile.name
+                          : teamForm.pictureUrl
+                            ? "Existing Image"
+                            : "No file selected"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}

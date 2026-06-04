@@ -1,14 +1,10 @@
-import type { Metadata } from "next";
-import Link from "next/link";
-import { PageHero, FadeIn, SectionHeading } from "@/components/site/Section";
-import { ArrowRight } from "lucide-react";
-import { PartnersClient } from "./PartnersClient";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Partners — TechFort Insight Series",
-  description:
-    "Current partners, collaboration and sponsorship opportunities with the TechFort Insight Series.",
-};
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { FadeIn, SectionHeading } from "@/components/site/Section";
+import { Handshake, ArrowRight } from "lucide-react";
+import { dbGetPartners, type Partner } from "@/lib/db";
 
 const opportunities = [
   {
@@ -29,16 +25,56 @@ const opportunities = [
   },
 ];
 
-export default function PartnersPage() {
+export function PartnersClient() {
+  const [partners, setPartners] = useState<Partner[]>([]);
+
+  useEffect(() => {
+    dbGetPartners()
+      .then((data) =>
+        setPartners([...data].sort((a, b) => (a.order || 0) - (b.order || 0))),
+      )
+      .catch((error) => console.error("Failed to load partners:", error));
+  }, []);
+
   return (
     <>
-      <PageHero
-        eyebrow="Partners"
-        title="Partnering to build Africa's AI ecosystem"
-        description="TechFort works with institutions, foundations, embassies and ecosystem actors committed to Africa's digital and AI future."
-      />
-
-      <PartnersClient />
+      <section className="py-20">
+        <div className="mx-auto max-w-6xl px-6">
+          <FadeIn>
+            <SectionHeading
+              eyebrow="Current Partners"
+              title={
+                <>
+                  Trusted <span className="text-gradient">collaborators</span>
+                </>
+              }
+            />
+          </FadeIn>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {partners.map((p, i) => (
+              <FadeIn key={p.id ?? `${p.name}-${i}`} delay={i * 0.05}>
+                <div className="rounded-3xl border border-border bg-card p-7 shadow-card hover:shadow-elegant transition-all">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground shadow-elegant">
+                    <Handshake className="h-5 w-5" />
+                  </span>
+                  <div className="mt-5 font-display font-semibold text-lg text-foreground">
+                    {p.name}
+                  </div>
+                  {p.logoUrl ? (
+                    <div className="mt-3">
+                      <img
+                        src={p.logoUrl}
+                        alt={`${p.name} logo`}
+                        className="max-h-12 object-contain"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="py-20 bg-surface">
         <div className="mx-auto max-w-6xl px-6">

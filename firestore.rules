@@ -33,6 +33,27 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /partners/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /speakers/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /teamMembers/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /siteSettings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+
     // Submissions: Anyone can submit new entries, only logged-in admin can read/update/delete
     match /applications/{docId} {
       allow create: if true;

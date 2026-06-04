@@ -66,13 +66,21 @@ export function PageHero({
   eyebrow,
   title,
   description,
+  heroImage,
 }: {
   eyebrow: string;
   title: ReactNode;
   description: ReactNode;
+  heroImage?: string;
 }) {
   return (
     <section className="relative overflow-hidden bg-hero pt-32 pb-16 md:pt-40 md:pb-24">
+      {heroImage && (
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay"
+          style={{ backgroundImage: `url(${heroImage})` }}
+        />
+      )}
       <div className="absolute inset-0 grid-bg opacity-70" />
       <div className="relative mx-auto max-w-5xl px-6 text-center">
         <FadeIn>

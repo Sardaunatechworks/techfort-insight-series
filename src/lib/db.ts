@@ -1,27 +1,8 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import {
-  getAuth,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  type User,
-  type Auth,
-} from "firebase/auth";
-import {
-  getFirestore,
-  collection,
-  doc,
-  addDoc,
-  getDocs,
-  onSnapshot,
-  updateDoc,
-  setDoc,
-  deleteDoc,
-  query,
-  orderBy,
-  Timestamp,
-  Firestore,
-} from "firebase/firestore";
+  createClient,
+  SupabaseClient,
+  User as SupabaseUser,
+} from "@supabase/supabase-js";
 
 // Models
 export interface Application {
@@ -79,10 +60,44 @@ export interface Article {
 
 export interface Resource {
   id?: string;
-  icon: string;
-  title: string;
-  desc: string;
+  courseTitle: string;
+  pdfUrl: string;
+  resourceId: string;
   order?: number;
+}
+
+export interface Partner {
+  id?: string;
+  name: string;
+  logoUrl: string;
+  order?: number;
+}
+
+export interface Speaker {
+  id?: string;
+  name: string;
+  pictureUrl: string;
+  shortBio: string;
+  date: string;
+  theme: string;
+  type: "upcoming" | "past";
+  order?: number;
+}
+
+export interface TeamMember {
+  id?: string;
+  name: string;
+  role: string;
+  specialization: string;
+  pictureUrl: string;
+  linkedinUrl: string;
+  twitterUrl: string;
+  order?: number;
+}
+
+export interface SiteSettings {
+  id?: string;
+  aboutHeroUrl: string;
 }
 
 export interface SocialLink {
@@ -99,45 +114,35 @@ export interface AdminUser {
   displayName?: string | null;
 }
 
-// Firebase Config
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
+// Supabase Config
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Check if we have valid Firebase config variables (not placeholder or empty)
-const hasFirebaseConfig =
-  firebaseConfig.apiKey &&
-  firebaseConfig.apiKey !== "" &&
-  !firebaseConfig.apiKey.includes("PLACEHOLDER") &&
-  firebaseConfig.projectId &&
-  firebaseConfig.projectId !== "" &&
-  !firebaseConfig.projectId.includes("PLACEHOLDER");
+// Check if we have valid Supabase config variables (not placeholder or empty)
+const hasSupabaseConfig =
+  supabaseUrl &&
+  supabaseUrl !== "" &&
+  !supabaseUrl.includes("PLACEHOLDER") &&
+  supabaseAnonKey &&
+  supabaseAnonKey !== "" &&
+  !supabaseAnonKey.includes("PLACEHOLDER");
 
-// Initialize Firebase client-side safely
-let app: FirebaseApp | undefined;
-let auth: Auth | undefined;
-let firestore: Firestore | undefined;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let supabase: SupabaseClient<any> | undefined;
 
-if (hasFirebaseConfig) {
+if (hasSupabaseConfig) {
   try {
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    auth = getAuth(app);
-    firestore = getFirestore(app);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase = createClient<any>(supabaseUrl!, supabaseAnonKey!);
   } catch (error) {
-    console.error("Error initializing Firebase:", error);
+    console.error("Error initializing Supabase client:", error);
   }
 }
 
-export const isMockMode = (): boolean =>
-  !hasFirebaseConfig || !auth || !firestore;
+export const isMockMode = (): boolean => !hasSupabaseConfig || !supabase;
 
 // ----------------------------------------------------------------------
-// LOCAL STORAGE MOCK PROVIDER (for previewing without Firebase API Keys)
+// LOCAL STORAGE MOCK PROVIDER (for previewing without Supabase API Keys)
 // ----------------------------------------------------------------------
 const getMockData = <T>(key: string, defaultVal: T): T => {
   if (typeof window === "undefined") return defaultVal;
@@ -152,7 +157,6 @@ const getMockData = <T>(key: string, defaultVal: T): T => {
 const setMockData = (key: string, data: unknown): void => {
   if (typeof window === "undefined") return;
   localStorage.setItem(`tf_mock_${key}`, JSON.stringify(data));
-  // Trigger custom storage event for same-tab updates
   window.dispatchEvent(new Event("tf_mock_storage_change"));
 };
 
@@ -295,26 +299,86 @@ const defaultArticles: Article[] = [
 const defaultResources: Resource[] = [
   {
     id: "res-1",
-    icon: "GraduationCap",
-    title: "AI Learning Materials",
-    desc: "Curated foundational AI and digital literacy content for beginners and intermediates.",
+    courseTitle: "Introduction to AI Governance",
+    resourceId: "RES-AI-101",
+    pdfUrl:
+      "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
     order: 1,
   },
   {
     id: "res-2",
-    icon: "BookOpen",
-    title: "Reading Lists",
-    desc: "Essential reads on AI, governance, ethics, African tech and digital transformation.",
+    courseTitle: "Digital Ethics in African Tech",
+    resourceId: "RES-ETHICS-202",
+    pdfUrl:
+      "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
     order: 2,
   },
   {
     id: "res-3",
-    icon: "Wrench",
-    title: "Recommended Tools",
-    desc: "Trusted tools and platforms for learning, building and experimenting with AI.",
+    courseTitle: "TechFort Recommended Tools Guide",
+    resourceId: "RES-TOOLS-303",
+    pdfUrl:
+      "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
     order: 3,
   },
 ];
+
+const defaultPartners: Partner[] = [
+  {
+    id: "part-1",
+    name: "Acme Corp",
+    logoUrl: "https://via.placeholder.com/150",
+    order: 1,
+  },
+  {
+    id: "part-2",
+    name: "Global Tech",
+    logoUrl: "https://via.placeholder.com/150",
+    order: 2,
+  },
+];
+
+const defaultSpeakers: Speaker[] = [
+  {
+    id: "spk-1",
+    name: "Jane Doe",
+    pictureUrl: "https://via.placeholder.com/150",
+    shortBio: "AI Policy Expert.",
+    date: "2024-05-10",
+    theme: "AI Governance",
+    type: "upcoming",
+    order: 1,
+  },
+  {
+    id: "spk-2",
+    name: "John Smith",
+    pictureUrl: "https://via.placeholder.com/150",
+    shortBio: "Data Scientist at Tech",
+    date: "2023-10-15",
+    theme: "Data Privacy",
+    type: "past",
+    order: 2,
+  },
+];
+
+const defaultTeamMembers: TeamMember[] = Array.from({ length: 8 }).map(
+  (_, i) => ({
+    id: `team-${i + 1}`,
+    name: `Team Member ${i + 1}`,
+    role: "Software Engineer",
+    specialization: "Frontend & UI/UX",
+    pictureUrl: "https://via.placeholder.com/150",
+    linkedinUrl: "https://linkedin.com",
+    twitterUrl: "https://twitter.com",
+    order: i + 1,
+  }),
+);
+
+const defaultSiteSettings: SiteSettings = {
+  id: "global",
+  aboutHeroUrl:
+    "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=2070",
+};
 
 const defaultSocialLinks: SocialLink[] = [
   {
@@ -354,13 +418,144 @@ const defaultSocialLinks: SocialLink[] = [
   },
 ];
 
+interface ResourceRow {
+  id: string;
+  course_title?: string;
+  pdf_url?: string;
+  resource_id?: string;
+  order?: number;
+}
+
+interface PartnerRow {
+  id: string;
+  name?: string;
+  logo_url?: string;
+  order?: number;
+}
+
+interface SpeakerRow {
+  id: string;
+  name?: string;
+  picture_url?: string;
+  short_bio?: string;
+  date?: string;
+  theme?: string;
+  type?: "upcoming" | "past";
+  order?: number;
+}
+
+interface TeamMemberRow {
+  id: string;
+  name?: string;
+  role?: string;
+  specialization?: string;
+  picture_url?: string;
+  linkedin_url?: string;
+  twitter_url?: string;
+  order?: number;
+}
+
+interface SiteSettingsRow {
+  id: string;
+  about_hero_url?: string;
+}
+
+interface ApplicationRow {
+  id: string;
+  name?: string;
+  email?: string;
+  country?: string;
+  org?: string;
+  track?: string;
+  message?: string;
+  status?: string;
+  created_at?: string;
+}
+
+interface ContactRow {
+  id: string;
+  name?: string;
+  email?: string;
+  org?: string;
+  subject?: string;
+  message?: string;
+  read?: boolean;
+  created_at?: string;
+}
+
+// Helper to convert DB rows to front-end types
+const mapResourceRow = (row: ResourceRow): Resource => ({
+  id: row.id,
+  courseTitle: row.course_title || "",
+  pdfUrl: row.pdf_url || "",
+  resourceId: row.resource_id || "",
+  order: row.order || 0,
+});
+
+const mapPartnerRow = (row: PartnerRow): Partner => ({
+  id: row.id,
+  name: row.name || "",
+  logoUrl: row.logo_url || "",
+  order: row.order || 0,
+});
+
+const mapSpeakerRow = (row: SpeakerRow): Speaker => ({
+  id: row.id,
+  name: row.name || "",
+  pictureUrl: row.picture_url || "",
+  shortBio: row.short_bio || "",
+  date: row.date || "",
+  theme: row.theme || "",
+  type: row.type || "upcoming",
+  order: row.order || 0,
+});
+
+const mapTeamMemberRow = (row: TeamMemberRow): TeamMember => ({
+  id: row.id,
+  name: row.name || "",
+  role: row.role || "",
+  specialization: row.specialization || "",
+  pictureUrl: row.picture_url || "",
+  linkedinUrl: row.linkedin_url || "",
+  twitterUrl: row.twitter_url || "",
+  order: row.order || 0,
+});
+
+const mapSiteSettingsRow = (row: SiteSettingsRow): SiteSettings => ({
+  id: row.id,
+  aboutHeroUrl: row.about_hero_url || "",
+});
+
+const mapApplicationRow = (row: ApplicationRow): Application => ({
+  id: row.id,
+  name: row.name || "",
+  email: row.email || "",
+  country: row.country || "",
+  org: row.org || "",
+  track: row.track || "",
+  message: row.message || "",
+  status: row.status || "pending",
+  createdAt: row.created_at || new Date().toISOString(),
+});
+
+const mapContactRow = (row: ContactRow): Contact => ({
+  id: row.id,
+  name: row.name || "",
+  email: row.email || "",
+  org: row.org || "",
+  subject: row.subject || "",
+  message: row.message || "",
+  read: !!row.read,
+  createdAt: row.created_at || new Date().toISOString(),
+});
+
 // ----------------------------------------------------------------------
 // AUTHENTICATION API
 // ----------------------------------------------------------------------
 export const dbLogin = async (
   email: string,
   password: string,
-): Promise<User | AdminUser> => {
+): Promise<SupabaseUser | AdminUser> => {
   if (isMockMode()) {
     if (email === "admin@techfort.org" && password === "admin123") {
       const mockUser: AdminUser = {
@@ -374,9 +569,14 @@ export const dbLogin = async (
     }
     throw new Error("Invalid credentials. Try admin@techfort.org / admin123");
   }
-  if (!auth) throw new Error("Firebase auth not initialized");
-  const credential = await signInWithEmailAndPassword(auth, email, password);
-  return credential.user;
+  if (!supabase) throw new Error("Supabase client not initialized");
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (error) throw error;
+  if (!data.user) throw new Error("Authentication failed");
+  return data.user;
 };
 
 export const dbLogout = async (): Promise<void> => {
@@ -385,12 +585,13 @@ export const dbLogout = async (): Promise<void> => {
     window.dispatchEvent(new Event("tf_mock_auth_change"));
     return;
   }
-  if (!auth) return;
-  await signOut(auth);
+  if (!supabase) return;
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 };
 
 export const dbOnAuthStateChanged = (
-  callback: (user: AdminUser | User | null) => void,
+  callback: (user: AdminUser | SupabaseUser | null) => void,
 ): (() => void) => {
   if (isMockMode()) {
     const checkUser = () => {
@@ -401,11 +602,25 @@ export const dbOnAuthStateChanged = (
     window.addEventListener("tf_mock_auth_change", checkUser);
     return () => window.removeEventListener("tf_mock_auth_change", checkUser);
   }
-  if (!auth) {
+  if (!supabase) {
     callback(null);
     return () => {};
   }
-  return onAuthStateChanged(auth, callback);
+
+  // Get current active session
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    callback(session?.user ?? null);
+  });
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    callback(session?.user ?? null);
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
 };
 
 // ----------------------------------------------------------------------
@@ -422,23 +637,24 @@ export const dbSubmitApplication = async (data: {
   const application = {
     ...data,
     status: "pending",
-    createdAt: new Date().toISOString(),
   };
 
   if (isMockMode()) {
     const currentList = getMockData<Application[]>("applications", []);
     setMockData("applications", [
-      { id: `app-${Date.now()}`, ...application },
+      {
+        id: `app-${Date.now()}`,
+        ...application,
+        createdAt: new Date().toISOString(),
+      },
       ...currentList,
     ]);
     return;
   }
 
-  if (!firestore) return;
-  await addDoc(collection(firestore, "applications"), {
-    ...application,
-    createdAt: Timestamp.now(),
-  });
+  if (!supabase) return;
+  const { error } = await supabase.from("applications").insert([application]);
+  if (error) throw error;
 };
 
 export const dbSubmitContact = async (data: {
@@ -451,23 +667,24 @@ export const dbSubmitContact = async (data: {
   const contact = {
     ...data,
     read: false,
-    createdAt: new Date().toISOString(),
   };
 
   if (isMockMode()) {
     const currentList = getMockData<Contact[]>("contacts", []);
     setMockData("contacts", [
-      { id: `cont-${Date.now()}`, ...contact },
+      {
+        id: `cont-${Date.now()}`,
+        ...contact,
+        createdAt: new Date().toISOString(),
+      },
       ...currentList,
     ]);
     return;
   }
 
-  if (!firestore) return;
-  await addDoc(collection(firestore, "contacts"), {
-    ...contact,
-    createdAt: Timestamp.now(),
-  });
+  if (!supabase) return;
+  const { error } = await supabase.from("contacts").insert([contact]);
+  if (error) throw error;
 };
 
 // ----------------------------------------------------------------------
@@ -483,34 +700,38 @@ export const dbListenApplications = (
     return () => window.removeEventListener("tf_mock_storage_change", load);
   }
 
-  if (!firestore) {
+  if (!supabase) {
     callback([]);
     return () => {};
   }
 
-  const q = query(
-    collection(firestore, "applications"),
-    orderBy("createdAt", "desc"),
-  );
-  return onSnapshot(q, (snapshot) => {
-    const apps = snapshot.docs.map((docEl) => {
-      const data = docEl.data();
-      return {
-        id: docEl.id,
-        name: data.name || "",
-        email: data.email || "",
-        country: data.country || "",
-        org: data.org || "",
-        track: data.track || "",
-        message: data.message || "",
-        status: data.status || "pending",
-        createdAt: data.createdAt?.toDate
-          ? data.createdAt.toDate().toISOString()
-          : data.createdAt || new Date().toISOString(),
-      } as Application;
-    });
-    callback(apps);
-  });
+  const fetchApps = async () => {
+    const { data } = await supabase
+      .from("applications")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) {
+      callback(data.map(mapApplicationRow));
+    }
+  };
+
+  fetchApps();
+
+  // Listen to postgres changes on applications table
+  const channel = supabase
+    .channel("realtime-applications")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "applications" },
+      () => {
+        fetchApps();
+      },
+    )
+    .subscribe();
+
+  return () => {
+    supabase?.removeChannel(channel);
+  };
 };
 
 export const dbUpdateApplicationStatus = async (
@@ -523,8 +744,12 @@ export const dbUpdateApplicationStatus = async (
     setMockData("applications", updated);
     return;
   }
-  if (!firestore) return;
-  await updateDoc(doc(firestore, "applications", id), { status });
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("applications")
+    .update({ status })
+    .eq("id", id);
+  if (error) throw error;
 };
 
 export const dbListenContacts = (
@@ -537,33 +762,37 @@ export const dbListenContacts = (
     return () => window.removeEventListener("tf_mock_storage_change", load);
   }
 
-  if (!firestore) {
+  if (!supabase) {
     callback([]);
     return () => {};
   }
 
-  const q = query(
-    collection(firestore, "contacts"),
-    orderBy("createdAt", "desc"),
-  );
-  return onSnapshot(q, (snapshot) => {
-    const contactsList = snapshot.docs.map((docEl) => {
-      const data = docEl.data();
-      return {
-        id: docEl.id,
-        name: data.name || "",
-        email: data.email || "",
-        org: data.org || "",
-        subject: data.subject || "",
-        message: data.message || "",
-        read: !!data.read,
-        createdAt: data.createdAt?.toDate
-          ? data.createdAt.toDate().toISOString()
-          : data.createdAt || new Date().toISOString(),
-      } as Contact;
-    });
-    callback(contactsList);
-  });
+  const fetchContacts = async () => {
+    const { data } = await supabase
+      .from("contacts")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) {
+      callback(data.map(mapContactRow));
+    }
+  };
+
+  fetchContacts();
+
+  const channel = supabase
+    .channel("realtime-contacts")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "contacts" },
+      () => {
+        fetchContacts();
+      },
+    )
+    .subscribe();
+
+  return () => {
+    supabase?.removeChannel(channel);
+  };
 };
 
 export const dbToggleContactRead = async (
@@ -576,8 +805,12 @@ export const dbToggleContactRead = async (
     setMockData("contacts", updated);
     return;
   }
-  if (!firestore) return;
-  await updateDoc(doc(firestore, "contacts", id), { read });
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("contacts")
+    .update({ read })
+    .eq("id", id);
+  if (error) throw error;
 };
 
 // ----------------------------------------------------------------------
@@ -589,27 +822,16 @@ export const dbGetPrograms = async (): Promise<Program[]> => {
   if (isMockMode()) {
     return getMockData<Program[]>("programs", defaultPrograms);
   }
-  if (!firestore) return defaultPrograms;
+  if (!supabase) return defaultPrograms;
   try {
-    const q = query(collection(firestore, "programs"), orderBy("order", "asc"));
-    const snap = await getDocs(q);
-    if (snap.empty) return defaultPrograms;
-    return snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        tag: data.tag || "",
-        title: data.title || "",
-        overview: data.overview || "",
-        goals: Array.isArray(data.goals) ? data.goals : [],
-        impact: data.impact || "",
-        outcomes: Array.isArray(data.outcomes) ? data.outcomes : [],
-        future: data.future || "",
-        order: data.order || 0,
-      } as Program;
-    });
+    const { data, error } = await supabase
+      .from("programs")
+      .select("*")
+      .order("order", { ascending: true });
+    if (error) throw error;
+    return (data || []) as Program[];
   } catch (e) {
-    console.error(e);
+    console.error("Error dbGetPrograms:", e);
     return defaultPrograms;
   }
 };
@@ -641,16 +863,18 @@ export const dbSaveProgram = async (
     return;
   }
 
-  if (!firestore) return;
+  if (!supabase) return;
   if (program.id) {
     const { id, ...data } = program;
-    await setDoc(doc(firestore, "programs", id), data, { merge: true });
+    const { error } = await supabase.from("programs").update(data).eq("id", id);
+    if (error) throw error;
   } else {
     const list = await dbGetPrograms();
-    await addDoc(collection(firestore, "programs"), {
+    const { error } = await supabase.from("programs").insert({
       ...program,
       order: list.length + 1,
     });
+    if (error) throw error;
   }
 };
 
@@ -663,8 +887,9 @@ export const dbDeleteProgram = async (id: string): Promise<void> => {
     );
     return;
   }
-  if (!firestore) return;
-  await deleteDoc(doc(firestore, "programs", id));
+  if (!supabase) return;
+  const { error } = await supabase.from("programs").delete().eq("id", id);
+  if (error) throw error;
 };
 
 // SESSIONS
@@ -672,24 +897,16 @@ export const dbGetSessions = async (): Promise<Session[]> => {
   if (isMockMode()) {
     return getMockData<Session[]>("sessions", defaultSessions);
   }
-  if (!firestore) return defaultSessions;
+  if (!supabase) return defaultSessions;
   try {
-    const q = query(collection(firestore, "sessions"), orderBy("order", "asc"));
-    const snap = await getDocs(q);
-    if (snap.empty) return defaultSessions;
-    return snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title || "",
-        date: data.date || "",
-        category: data.category || "",
-        status: data.status || "",
-        order: data.order || 0,
-      } as Session;
-    });
+    const { data, error } = await supabase
+      .from("sessions")
+      .select("*")
+      .order("order", { ascending: true });
+    if (error) throw error;
+    return (data || []) as Session[];
   } catch (e) {
-    console.error(e);
+    console.error("Error dbGetSessions:", e);
     return defaultSessions;
   }
 };
@@ -718,16 +935,18 @@ export const dbSaveSession = async (
     return;
   }
 
-  if (!firestore) return;
+  if (!supabase) return;
   if (session.id) {
     const { id, ...data } = session;
-    await setDoc(doc(firestore, "sessions", id), data, { merge: true });
+    const { error } = await supabase.from("sessions").update(data).eq("id", id);
+    if (error) throw error;
   } else {
     const list = await dbGetSessions();
-    await addDoc(collection(firestore, "sessions"), {
+    const { error } = await supabase.from("sessions").insert({
       ...session,
       order: list.length + 1,
     });
+    if (error) throw error;
   }
 };
 
@@ -740,8 +959,9 @@ export const dbDeleteSession = async (id: string): Promise<void> => {
     );
     return;
   }
-  if (!firestore) return;
-  await deleteDoc(doc(firestore, "sessions", id));
+  if (!supabase) return;
+  const { error } = await supabase.from("sessions").delete().eq("id", id);
+  if (error) throw error;
 };
 
 // ARTICLES
@@ -749,23 +969,16 @@ export const dbGetArticles = async (): Promise<Article[]> => {
   if (isMockMode()) {
     return getMockData<Article[]>("articles", defaultArticles);
   }
-  if (!firestore) return defaultArticles;
+  if (!supabase) return defaultArticles;
   try {
-    const q = query(collection(firestore, "articles"), orderBy("order", "asc"));
-    const snap = await getDocs(q);
-    if (snap.empty) return defaultArticles;
-    return snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        tag: data.tag || "",
-        title: data.title || "",
-        excerpt: data.excerpt || "",
-        order: data.order || 0,
-      } as Article;
-    });
+    const { data, error } = await supabase
+      .from("articles")
+      .select("*")
+      .order("order", { ascending: true });
+    if (error) throw error;
+    return (data || []) as Article[];
   } catch (e) {
-    console.error(e);
+    console.error("Error dbGetArticles:", e);
     return defaultArticles;
   }
 };
@@ -793,16 +1006,18 @@ export const dbSaveArticle = async (
     return;
   }
 
-  if (!firestore) return;
+  if (!supabase) return;
   if (article.id) {
     const { id, ...data } = article;
-    await setDoc(doc(firestore, "articles", id), data, { merge: true });
+    const { error } = await supabase.from("articles").update(data).eq("id", id);
+    if (error) throw error;
   } else {
     const list = await dbGetArticles();
-    await addDoc(collection(firestore, "articles"), {
+    const { error } = await supabase.from("articles").insert({
       ...article,
       order: list.length + 1,
     });
+    if (error) throw error;
   }
 };
 
@@ -815,8 +1030,9 @@ export const dbDeleteArticle = async (id: string): Promise<void> => {
     );
     return;
   }
-  if (!firestore) return;
-  await deleteDoc(doc(firestore, "articles", id));
+  if (!supabase) return;
+  const { error } = await supabase.from("articles").delete().eq("id", id);
+  if (error) throw error;
 };
 
 // RESOURCES
@@ -824,26 +1040,16 @@ export const dbGetResources = async (): Promise<Resource[]> => {
   if (isMockMode()) {
     return getMockData<Resource[]>("resources", defaultResources);
   }
-  if (!firestore) return defaultResources;
+  if (!supabase) return defaultResources;
   try {
-    const q = query(
-      collection(firestore, "resources"),
-      orderBy("order", "asc"),
-    );
-    const snap = await getDocs(q);
-    if (snap.empty) return defaultResources;
-    return snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        icon: data.icon || "",
-        title: data.title || "",
-        desc: data.desc || "",
-        order: data.order || 0,
-      } as Resource;
-    });
+    const { data, error } = await supabase
+      .from("resources")
+      .select("*")
+      .order("order", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapResourceRow);
   } catch (e) {
-    console.error(e);
+    console.error("Error dbGetResources:", e);
     return defaultResources;
   }
 };
@@ -860,9 +1066,9 @@ export const dbSaveResource = async (
       setMockData("resources", updated);
     } else {
       const newRes: Resource = {
-        icon: resource.icon || "GraduationCap",
-        title: resource.title || "",
-        desc: resource.desc || "",
+        courseTitle: resource.courseTitle || "",
+        resourceId: resource.resourceId || "",
+        pdfUrl: resource.pdfUrl || "",
         id: `res-${Date.now()}`,
         order: list.length + 1,
       };
@@ -871,16 +1077,27 @@ export const dbSaveResource = async (
     return;
   }
 
-  if (!firestore) return;
+  if (!supabase) return;
+  const dbData = {
+    course_title: resource.courseTitle,
+    resource_id: resource.resourceId,
+    pdf_url: resource.pdfUrl,
+    order: resource.order,
+  };
+
   if (resource.id) {
-    const { id, ...data } = resource;
-    await setDoc(doc(firestore, "resources", id), data, { merge: true });
+    const { error } = await supabase
+      .from("resources")
+      .update(dbData)
+      .eq("id", resource.id);
+    if (error) throw error;
   } else {
     const list = await dbGetResources();
-    await addDoc(collection(firestore, "resources"), {
-      ...resource,
+    const { error } = await supabase.from("resources").insert({
+      ...dbData,
       order: list.length + 1,
     });
+    if (error) throw error;
   }
 };
 
@@ -893,8 +1110,9 @@ export const dbDeleteResource = async (id: string): Promise<void> => {
     );
     return;
   }
-  if (!firestore) return;
-  await deleteDoc(doc(firestore, "resources", id));
+  if (!supabase) return;
+  const { error } = await supabase.from("resources").delete().eq("id", id);
+  if (error) throw error;
 };
 
 // SOCIAL LINKS
@@ -902,26 +1120,16 @@ export const dbGetSocialLinks = async (): Promise<SocialLink[]> => {
   if (isMockMode()) {
     return getMockData<SocialLink[]>("socialLinks", defaultSocialLinks);
   }
-  if (!firestore) return defaultSocialLinks;
+  if (!supabase) return defaultSocialLinks;
   try {
-    const q = query(
-      collection(firestore, "socialLinks"),
-      orderBy("order", "asc"),
-    );
-    const snap = await getDocs(q);
-    if (snap.empty) return defaultSocialLinks;
-    return snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        platform: data.platform || "",
-        url: data.url || "",
-        icon: data.icon || "Globe",
-        order: data.order || 0,
-      } as SocialLink;
-    });
+    const { data, error } = await supabase
+      .from("social_links")
+      .select("*")
+      .order("order", { ascending: true });
+    if (error) throw error;
+    return (data || []) as SocialLink[];
   } catch (e) {
-    console.error(e);
+    console.error("Error dbGetSocialLinks:", e);
     return defaultSocialLinks;
   }
 };
@@ -949,16 +1157,21 @@ export const dbSaveSocialLink = async (
     return;
   }
 
-  if (!firestore) return;
+  if (!supabase) return;
   if (link.id) {
     const { id, ...data } = link;
-    await setDoc(doc(firestore, "socialLinks", id), data, { merge: true });
+    const { error } = await supabase
+      .from("social_links")
+      .update(data)
+      .eq("id", id);
+    if (error) throw error;
   } else {
     const list = await dbGetSocialLinks();
-    await addDoc(collection(firestore, "socialLinks"), {
+    const { error } = await supabase.from("social_links").insert({
       ...link,
       order: list.length + 1,
     });
+    if (error) throw error;
   }
 };
 
@@ -971,6 +1184,333 @@ export const dbDeleteSocialLink = async (id: string): Promise<void> => {
     );
     return;
   }
-  if (!firestore) return;
-  await deleteDoc(doc(firestore, "socialLinks", id));
+  if (!supabase) return;
+  const { error } = await supabase.from("social_links").delete().eq("id", id);
+  if (error) throw error;
+};
+
+// PARTNERS
+export const dbGetPartners = async (): Promise<Partner[]> => {
+  if (isMockMode()) {
+    return getMockData<Partner[]>("partners", defaultPartners);
+  }
+  if (!supabase) return defaultPartners;
+  try {
+    const { data, error } = await supabase
+      .from("partners")
+      .select("*")
+      .order("order", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapPartnerRow);
+  } catch (e) {
+    console.error("Error dbGetPartners:", e);
+    return defaultPartners;
+  }
+};
+
+export const dbSavePartner = async (
+  partner: Partial<Partner>,
+): Promise<void> => {
+  if (isMockMode()) {
+    const list = getMockData<Partner[]>("partners", defaultPartners);
+    if (partner.id) {
+      setMockData(
+        "partners",
+        list.map((p) =>
+          p.id === partner.id ? ({ ...p, ...partner } as Partner) : p,
+        ),
+      );
+    } else {
+      setMockData("partners", [
+        ...list,
+        {
+          name: partner.name || "",
+          logoUrl: partner.logoUrl || "",
+          id: `part-${Date.now()}`,
+          order: list.length + 1,
+        },
+      ]);
+    }
+    return;
+  }
+
+  if (!supabase) return;
+  const dbData = {
+    name: partner.name,
+    logo_url: partner.logoUrl,
+    order: partner.order,
+  };
+
+  if (partner.id) {
+    const { error } = await supabase
+      .from("partners")
+      .update(dbData)
+      .eq("id", partner.id);
+    if (error) throw error;
+  } else {
+    const list = await dbGetPartners();
+    const { error } = await supabase.from("partners").insert({
+      ...dbData,
+      order: list.length + 1,
+    });
+    if (error) throw error;
+  }
+};
+
+export const dbDeletePartner = async (id: string): Promise<void> => {
+  if (isMockMode()) {
+    setMockData(
+      "partners",
+      getMockData<Partner[]>("partners", defaultPartners).filter(
+        (p) => p.id !== id,
+      ),
+    );
+    return;
+  }
+  if (!supabase) return;
+  const { error } = await supabase.from("partners").delete().eq("id", id);
+  if (error) throw error;
+};
+
+// SPEAKERS
+export const dbGetSpeakers = async (): Promise<Speaker[]> => {
+  if (isMockMode()) {
+    return getMockData<Speaker[]>("speakers", defaultSpeakers);
+  }
+  if (!supabase) return defaultSpeakers;
+  try {
+    const { data, error } = await supabase
+      .from("speakers")
+      .select("*")
+      .order("order", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapSpeakerRow);
+  } catch (e) {
+    console.error("Error dbGetSpeakers:", e);
+    return defaultSpeakers;
+  }
+};
+
+export const dbSaveSpeaker = async (
+  speaker: Partial<Speaker>,
+): Promise<void> => {
+  if (isMockMode()) {
+    const list = getMockData<Speaker[]>("speakers", defaultSpeakers);
+    if (speaker.id) {
+      setMockData(
+        "speakers",
+        list.map((s) =>
+          s.id === speaker.id ? ({ ...s, ...speaker } as Speaker) : s,
+        ),
+      );
+    } else {
+      setMockData("speakers", [
+        ...list,
+        {
+          ...speaker,
+          id: `spk-${Date.now()}`,
+          order: list.length + 1,
+        } as Speaker,
+      ]);
+    }
+    return;
+  }
+
+  if (!supabase) return;
+  const dbData = {
+    name: speaker.name,
+    picture_url: speaker.pictureUrl,
+    short_bio: speaker.shortBio,
+    date: speaker.date,
+    theme: speaker.theme,
+    type: speaker.type,
+    order: speaker.order,
+  };
+
+  if (speaker.id) {
+    const { error } = await supabase
+      .from("speakers")
+      .update(dbData)
+      .eq("id", speaker.id);
+    if (error) throw error;
+  } else {
+    const list = await dbGetSpeakers();
+    const { error } = await supabase.from("speakers").insert({
+      ...dbData,
+      order: list.length + 1,
+    });
+    if (error) throw error;
+  }
+};
+
+export const dbDeleteSpeaker = async (id: string): Promise<void> => {
+  if (isMockMode()) {
+    setMockData(
+      "speakers",
+      getMockData<Speaker[]>("speakers", defaultSpeakers).filter(
+        (s) => s.id !== id,
+      ),
+    );
+    return;
+  }
+  if (!supabase) return;
+  const { error } = await supabase.from("speakers").delete().eq("id", id);
+  if (error) throw error;
+};
+
+// TEAM MEMBERS
+export const dbGetTeamMembers = async (): Promise<TeamMember[]> => {
+  if (isMockMode()) {
+    return getMockData<TeamMember[]>("teamMembers", defaultTeamMembers);
+  }
+  if (!supabase) return defaultTeamMembers;
+  try {
+    const { data, error } = await supabase
+      .from("team_members")
+      .select("*")
+      .order("order", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapTeamMemberRow);
+  } catch (e) {
+    console.error("Error dbGetTeamMembers:", e);
+    return defaultTeamMembers;
+  }
+};
+
+export const dbSaveTeamMember = async (
+  team: Partial<TeamMember>,
+): Promise<void> => {
+  if (isMockMode()) {
+    const list = getMockData<TeamMember[]>("teamMembers", defaultTeamMembers);
+    if (team.id) {
+      setMockData(
+        "teamMembers",
+        list.map((t) =>
+          t.id === team.id ? ({ ...t, ...team } as TeamMember) : t,
+        ),
+      );
+    } else {
+      setMockData("teamMembers", [
+        ...list,
+        {
+          ...team,
+          id: `team-${Date.now()}`,
+          order: list.length + 1,
+        } as TeamMember,
+      ]);
+    }
+    return;
+  }
+
+  if (!supabase) return;
+  const dbData = {
+    name: team.name,
+    role: team.role,
+    specialization: team.specialization,
+    picture_url: team.pictureUrl,
+    linkedin_url: team.linkedinUrl,
+    twitter_url: team.twitterUrl,
+    order: team.order,
+  };
+
+  if (team.id) {
+    const { error } = await supabase
+      .from("team_members")
+      .update(dbData)
+      .eq("id", team.id);
+    if (error) throw error;
+  } else {
+    const list = await dbGetTeamMembers();
+    const { error } = await supabase.from("team_members").insert({
+      ...dbData,
+      order: list.length + 1,
+    });
+    if (error) throw error;
+  }
+};
+
+export const dbDeleteTeamMember = async (id: string): Promise<void> => {
+  if (isMockMode()) {
+    setMockData(
+      "teamMembers",
+      getMockData<TeamMember[]>("teamMembers", defaultTeamMembers).filter(
+        (t) => t.id !== id,
+      ),
+    );
+    return;
+  }
+  if (!supabase) return;
+  const { error } = await supabase.from("team_members").delete().eq("id", id);
+  if (error) throw error;
+};
+
+// SITE SETTINGS
+export const dbGetSiteSettings = async (): Promise<SiteSettings> => {
+  if (isMockMode()) {
+    return getMockData<SiteSettings>("siteSettings", defaultSiteSettings);
+  }
+  if (!supabase) return defaultSiteSettings;
+  try {
+    const { data, error } = await supabase.from("site_settings").select("*");
+    if (error) throw error;
+    if (!data || data.length === 0) return defaultSiteSettings;
+    return mapSiteSettingsRow(data[0]);
+  } catch (e) {
+    console.error("Error dbGetSiteSettings:", e);
+    return defaultSiteSettings;
+  }
+};
+
+export const dbSaveSiteSettings = async (
+  settings: Partial<SiteSettings>,
+): Promise<void> => {
+  if (isMockMode()) {
+    const current = getMockData<SiteSettings>(
+      "siteSettings",
+      defaultSiteSettings,
+    );
+    setMockData("siteSettings", { ...current, ...settings });
+    return;
+  }
+  if (!supabase) return;
+  const current = await dbGetSiteSettings();
+  const dbData = {
+    about_hero_url: settings.aboutHeroUrl,
+  };
+
+  const id = current.id || "global";
+  const { error } = await supabase
+    .from("site_settings")
+    .upsert({ id, ...dbData });
+  if (error) throw error;
+};
+
+// UPLOAD FILE
+export const dbUploadFile = async (
+  file: File,
+  path: string,
+): Promise<string> => {
+  if (isMockMode()) {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(URL.createObjectURL(file));
+      }, 1000);
+    });
+  }
+  if (!supabase) throw new Error("Supabase client not initialized");
+
+  const fileName = `${Date.now()}_${file.name}`;
+  const filePath = `${path}/${fileName}`;
+
+  const { error } = await supabase.storage
+    .from("uploads")
+    .upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+  if (error) throw error;
+
+  const { data } = supabase.storage.from("uploads").getPublicUrl(filePath);
+  return data.publicUrl;
 };

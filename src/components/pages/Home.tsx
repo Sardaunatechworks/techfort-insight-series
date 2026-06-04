@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -22,6 +23,7 @@ import {
   FadeIn,
   SectionLabel,
 } from "@/components/site/Section";
+import { dbGetPartners, type Partner } from "@/lib/db";
 
 const stats = [
   { value: "450+", label: "Participants Impacted" },
@@ -107,13 +109,6 @@ const speakers = [
   { name: "Community Lead", role: "AI SENSE", initial: "C" },
 ];
 
-const partners = [
-  "Window on America Dutse",
-  "American Spaces Nigeria",
-  "Drone Forge Africa",
-  "TechFort Foundation",
-];
-
 const testimonials = [
   {
     quote:
@@ -136,6 +131,16 @@ const testimonials = [
 ];
 
 export default function Home() {
+  const [partners, setPartners] = useState<Partner[]>([]);
+
+  useEffect(() => {
+    dbGetPartners()
+      .then((data) =>
+        setPartners([...data].sort((a, b) => (a.order || 0) - (b.order || 0))),
+      )
+      .catch((error) => console.error("Failed to load partners:", error));
+  }, []);
+
   return (
     <>
       {/* HERO */}
@@ -494,12 +499,12 @@ export default function Home() {
           </FadeIn>
           <FadeIn delay={0.1}>
             <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-              {partners.map((p) => (
+              {partners.map((p, index) => (
                 <div
-                  key={p}
+                  key={p.id ?? `${p.name}-${index}`}
                   className="glass rounded-2xl border border-border px-4 py-6 text-sm font-semibold text-foreground/70 hover:text-primary transition-colors"
                 >
-                  {p}
+                  {p.name}
                 </div>
               ))}
             </div>
