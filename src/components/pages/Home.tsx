@@ -618,9 +618,19 @@ export default function Home() {
               {partners.map((p, index) => (
                 <div
                   key={p.id ?? `${p.name}-${index}`}
-                  className="glass rounded-2xl border border-border px-4 py-6 text-sm font-semibold text-foreground/70 hover:text-primary transition-colors"
+                  className="glass rounded-2xl border border-border px-6 py-4 flex items-center justify-center h-20 hover:border-primary/40 hover:shadow-elegant transition-all duration-300"
                 >
-                  {p.name}
+                  {p.logoUrl ? (
+                    <img
+                      src={p.logoUrl}
+                      alt={p.name}
+                      className="max-h-full max-w-full object-contain filter grayscale opacity-75 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
+                    />
+                  ) : (
+                    <span className="text-sm font-semibold text-foreground/70">
+                      {p.name}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

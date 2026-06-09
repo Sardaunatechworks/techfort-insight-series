@@ -1496,32 +1496,38 @@ export const dbDeleteTeamMember = async (id: string): Promise<void> => {
 
 // SITE SETTINGS
 export const dbGetSiteSettings = async (): Promise<SiteSettings> => {
+  const mockSettings = getMockData<SiteSettings>(
+    "siteSettings",
+    defaultSiteSettings,
+  );
   if (isMockMode()) {
-    return getMockData<SiteSettings>("siteSettings", defaultSiteSettings);
+    return mockSettings;
   }
-  if (!supabase) return defaultSiteSettings;
+  if (!supabase) return mockSettings;
   try {
     const { data, error } = await supabase.from("site_settings").select("*");
     if (error) throw error;
-    if (!data || data.length === 0) return defaultSiteSettings;
-    return mapSiteSettingsRow(data[0]);
+    if (!data || data.length === 0)
+      return { ...defaultSiteSettings, ...mockSettings };
+
+    const dbSettings = mapSiteSettingsRow(data[0]);
+    // Merge database values with local storage fallbacks for logoUrl and heroBgUrl
+    // in case they were saved locally due to database schema limitations
+    return {
+      ...defaultSiteSettings,
+      ...dbSettings,
+      logoUrl: dbSettings.logoUrl || mockSettings.logoUrl || "",
+      heroBgUrl: dbSettings.heroBgUrl || mockSettings.heroBgUrl || "",
+    };
   } catch (e) {
-    console.error("Error dbGetSiteSettings:", e);
-    return defaultSiteSettings;
+    console.warn("dbGetSiteSettings failed, falling back to mock storage:", e);
+    return mockSettings;
   }
 };
 
 export const dbSaveSiteSettings = async (
   settings: Partial<SiteSettings>,
 ): Promise<void> => {
-  if (isMockMode()) {
-    const current = getMockData<SiteSettings>(
-      "siteSettings",
-      defaultSiteSettings,
-    );
-    setMockData("siteSettings", { ...current, ...settings });
-    return;
-  }
   const saveMock = () => {
     const current = getMockData<SiteSettings>(
       "siteSettings",
@@ -1557,6 +1563,11 @@ export const dbSaveSiteSettings = async (
       .from("site_settings")
       .upsert({ id, ...dbData });
     if (error) throw error;
+
+    // Dispatch event so other components reload siteSettings immediately
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("tf_mock_storage_change"));
+    }
   } catch (e) {
     console.warn("dbSaveSiteSettings failed, falling back to mock storage:", e);
     saveMock();
