@@ -98,6 +98,15 @@ export interface TeamMember {
 export interface SiteSettings {
   id?: string;
   aboutHeroUrl: string;
+  logoUrl?: string;
+  heroBgUrl?: string;
+}
+
+export interface GalleryImage {
+  id?: string;
+  url: string;
+  caption?: string;
+  order?: number;
 }
 
 export interface SocialLink {
@@ -338,6 +347,27 @@ const defaultPartners: Partner[] = [
   },
 ];
 
+const defaultGalleryImages: GalleryImage[] = [
+  {
+    id: "gal-1",
+    url: "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=1000",
+    caption: "AI literacy program graduation ceremony",
+    order: 1,
+  },
+  {
+    id: "gal-2",
+    url: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1000",
+    caption: "Hands-on robotics prototyping workshop",
+    order: 2,
+  },
+  {
+    id: "gal-3",
+    url: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?q=80&w=1000",
+    caption: "Collaborative learning and group discussion",
+    order: 3,
+  },
+];
+
 const defaultSpeakers: Speaker[] = [
   {
     id: "spk-1",
@@ -378,6 +408,8 @@ const defaultSiteSettings: SiteSettings = {
   id: "global",
   aboutHeroUrl:
     "https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=2070",
+  logoUrl: "",
+  heroBgUrl: "",
 };
 
 const defaultSocialLinks: SocialLink[] = [
@@ -433,6 +465,13 @@ interface PartnerRow {
   order?: number;
 }
 
+interface GalleryImageRow {
+  id: string;
+  url?: string;
+  caption?: string;
+  order?: number;
+}
+
 interface SpeakerRow {
   id: string;
   name?: string;
@@ -458,6 +497,8 @@ interface TeamMemberRow {
 interface SiteSettingsRow {
   id: string;
   about_hero_url?: string;
+  logo_url?: string;
+  hero_bg_url?: string;
 }
 
 interface ApplicationRow {
@@ -499,6 +540,13 @@ const mapPartnerRow = (row: PartnerRow): Partner => ({
   order: row.order || 0,
 });
 
+const mapGalleryImageRow = (row: GalleryImageRow): GalleryImage => ({
+  id: row.id,
+  url: row.url || "",
+  caption: row.caption || "",
+  order: row.order || 0,
+});
+
 const mapSpeakerRow = (row: SpeakerRow): Speaker => ({
   id: row.id,
   name: row.name || "",
@@ -524,6 +572,8 @@ const mapTeamMemberRow = (row: TeamMemberRow): TeamMember => ({
 const mapSiteSettingsRow = (row: SiteSettingsRow): SiteSettings => ({
   id: row.id,
   aboutHeroUrl: row.about_hero_url || "",
+  logoUrl: row.logo_url || "",
+  heroBgUrl: row.hero_bg_url || "",
 });
 
 const mapApplicationRow = (row: ApplicationRow): Application => ({
@@ -1472,17 +1522,45 @@ export const dbSaveSiteSettings = async (
     setMockData("siteSettings", { ...current, ...settings });
     return;
   }
-  if (!supabase) return;
-  const current = await dbGetSiteSettings();
-  const dbData = {
-    about_hero_url: settings.aboutHeroUrl,
+  const saveMock = () => {
+    const current = getMockData<SiteSettings>(
+      "siteSettings",
+      defaultSiteSettings,
+    );
+    setMockData("siteSettings", { ...current, ...settings });
   };
 
-  const id = current.id || "global";
-  const { error } = await supabase
-    .from("site_settings")
-    .upsert({ id, ...dbData });
-  if (error) throw error;
+  if (isMockMode()) {
+    saveMock();
+    return;
+  }
+  if (!supabase) return;
+  try {
+    const current = await dbGetSiteSettings();
+    const dbData = {
+      about_hero_url:
+        settings.aboutHeroUrl !== undefined
+          ? settings.aboutHeroUrl
+          : current.aboutHeroUrl,
+      logo_url:
+        settings.logoUrl !== undefined
+          ? settings.logoUrl
+          : current.logoUrl || null,
+      hero_bg_url:
+        settings.heroBgUrl !== undefined
+          ? settings.heroBgUrl
+          : current.heroBgUrl || null,
+    };
+
+    const id = current.id || "global";
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert({ id, ...dbData });
+    if (error) throw error;
+  } catch (e) {
+    console.warn("dbSaveSiteSettings failed, falling back to mock storage:", e);
+    saveMock();
+  }
 };
 
 // UPLOAD FILE
@@ -1513,4 +1591,114 @@ export const dbUploadFile = async (
 
   const { data } = supabase.storage.from("uploads").getPublicUrl(filePath);
   return data.publicUrl;
+};
+
+// GALLERY IMAGES
+export const dbGetGalleryImages = async (): Promise<GalleryImage[]> => {
+  if (isMockMode()) {
+    return getMockData<GalleryImage[]>("galleryImages", defaultGalleryImages);
+  }
+  if (!supabase) return defaultGalleryImages;
+  try {
+    const { data, error } = await supabase
+      .from("gallery_images")
+      .select("*")
+      .order("order", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapGalleryImageRow);
+  } catch (e) {
+    console.warn("dbGetGalleryImages failed, falling back to mock storage:", e);
+    return getMockData<GalleryImage[]>("galleryImages", defaultGalleryImages);
+  }
+};
+
+export const dbSaveGalleryImage = async (
+  image: Partial<GalleryImage>,
+): Promise<void> => {
+  const saveMock = () => {
+    const list = getMockData<GalleryImage[]>(
+      "galleryImages",
+      defaultGalleryImages,
+    );
+    if (image.id) {
+      setMockData(
+        "galleryImages",
+        list.map((item) =>
+          item.id === image.id ? ({ ...item, ...image } as GalleryImage) : item,
+        ),
+      );
+    } else {
+      setMockData("galleryImages", [
+        ...list,
+        {
+          url: image.url || "",
+          caption: image.caption || "",
+          id: `gal-${Date.now()}`,
+          order: list.length + 1,
+        },
+      ]);
+    }
+  };
+
+  if (isMockMode()) {
+    saveMock();
+    return;
+  }
+
+  if (!supabase) return;
+  const dbData = {
+    url: image.url,
+    caption: image.caption,
+    order: image.order,
+  };
+
+  try {
+    if (image.id) {
+      const { error } = await supabase
+        .from("gallery_images")
+        .update(dbData)
+        .eq("id", image.id);
+      if (error) throw error;
+    } else {
+      const list = await dbGetGalleryImages();
+      const { error } = await supabase.from("gallery_images").insert({
+        ...dbData,
+        order: list.length + 1,
+      });
+      if (error) throw error;
+    }
+  } catch (e) {
+    console.warn("dbSaveGalleryImage failed, falling back to mock storage:", e);
+    saveMock();
+  }
+};
+
+export const dbDeleteGalleryImage = async (id: string): Promise<void> => {
+  const deleteMock = () => {
+    setMockData(
+      "galleryImages",
+      getMockData<GalleryImage[]>("galleryImages", defaultGalleryImages).filter(
+        (item) => item.id !== id,
+      ),
+    );
+  };
+
+  if (isMockMode()) {
+    deleteMock();
+    return;
+  }
+  if (!supabase) return;
+  try {
+    const { error } = await supabase
+      .from("gallery_images")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  } catch (e) {
+    console.warn(
+      "dbDeleteGalleryImage failed, falling back to mock storage:",
+      e,
+    );
+    deleteMock();
+  }
 };

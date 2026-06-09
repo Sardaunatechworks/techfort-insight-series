@@ -23,7 +23,15 @@ import {
   FadeIn,
   SectionLabel,
 } from "@/components/site/Section";
-import { dbGetPartners, type Partner } from "@/lib/db";
+import {
+  dbGetPartners,
+  dbGetGalleryImages,
+  dbGetSiteSettings,
+  type Partner,
+  type GalleryImage,
+  type SiteSettings,
+} from "@/lib/db";
+import { AnimatePresence } from "framer-motion";
 
 const stats = [
   { value: "450+", label: "Participants Impacted" },
@@ -132,20 +140,65 @@ const testimonials = [
 
 export default function Home() {
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => {
-    dbGetPartners()
-      .then((data) =>
-        setPartners([...data].sort((a, b) => (a.order || 0) - (b.order || 0))),
-      )
-      .catch((error) => console.error("Failed to load partners:", error));
+    let active = true;
+
+    const loadData = async () => {
+      try {
+        const partnersData = await dbGetPartners();
+        const galleryData = await dbGetGalleryImages();
+        const settingsData = await dbGetSiteSettings();
+
+        if (active) {
+          setPartners(
+            [...partnersData].sort((a, b) => (a.order || 0) - (b.order || 0)),
+          );
+          setGalleryImages(
+            [...galleryData].sort((a, b) => (a.order || 0) - (b.order || 0)),
+          );
+          setSiteSettings(settingsData);
+        }
+      } catch (error) {
+        console.error("Failed to load homepage dynamic CMS data:", error);
+      }
+    };
+
+    loadData();
+    window.addEventListener("tf_mock_storage_change", loadData);
+
+    return () => {
+      active = false;
+      window.removeEventListener("tf_mock_storage_change", loadData);
+    };
   }, []);
 
   return (
     <>
       {/* HERO */}
       <section className="relative overflow-hidden bg-hero pt-32 pb-20 md:pt-40 md:pb-32">
-        <div className="absolute inset-0 grid-bg opacity-60" />
+        <AnimatePresence mode="wait">
+          {siteSettings?.heroBgUrl && (
+            <motion.div
+              key={siteSettings.heroBgUrl}
+              initial={{ opacity: 0, scale: 1.05 }}
+              animate={{ opacity: 0.22, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 1.8, ease: "easeInOut" }}
+              className="absolute inset-0 z-0 pointer-events-none"
+            >
+              <img
+                src={siteSettings.heroBgUrl}
+                alt="Hero background"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div className="absolute inset-0 grid-bg opacity-60 z-0" />
         <div className="relative mx-auto max-w-7xl px-6">
           <div className="grid items-center gap-12 lg:grid-cols-12">
             <div className="lg:col-span-7">
@@ -193,7 +246,6 @@ export default function Home() {
                 <div className="mt-10 flex items-center gap-6 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Active across 5 initiatives
                   </div>
                   <div className="hidden sm:block h-4 w-px bg-border" />
                   <div className="hidden sm:block">
@@ -422,6 +474,70 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* MOMENTS OF IMPACT GALLERY */}
+      {galleryImages.length > 0 && (
+        <section className="py-24 bg-card relative overflow-hidden border-t border-b border-border">
+          <div className="absolute inset-0 bg-mesh opacity-40 pointer-events-none" />
+          <div className="relative mx-auto max-w-7xl px-6">
+            <FadeIn>
+              <SectionHeading
+                center
+                eyebrow="Moments of Impact"
+                title={
+                  <>
+                    Our Journey in{" "}
+                    <span className="text-gradient">Visual Highlights</span>
+                  </>
+                }
+                description="A curated look into our cohorts, workshops, sessions, and community activations driving AI literacy across the continent."
+              />
+            </FadeIn>
+
+            <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {galleryImages.map((img, index) => (
+                <motion.div
+                  key={img.id || index}
+                  initial={{ opacity: 0, y: 50, scale: 0.95 }}
+                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                  viewport={{ once: false, margin: "-80px" }}
+                  transition={{
+                    duration: 0.7,
+                    delay: (index % 3) * 0.1,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  whileHover={{
+                    y: -6,
+                    transition: { duration: 0.3, ease: "easeOut" },
+                  }}
+                  className="group relative overflow-hidden rounded-3xl border border-border bg-background p-3 shadow-card hover:shadow-elegant transition-all"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-muted/20">
+                    <img
+                      src={img.url}
+                      alt={img.caption || "Moments of Impact"}
+                      className="w-full h-full object-cover transform transition-transform duration-700 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-navy/60 via-navy/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                    <span className="absolute top-4 left-4 inline-flex items-center gap-1.5 rounded-lg glass-strong px-3 py-1.5 text-xs font-semibold text-foreground opacity-90 backdrop-blur-md">
+                      Moment {index + 1}
+                    </span>
+                  </div>
+
+                  {img.caption && (
+                    <div className="p-4 text-left">
+                      <p className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors line-clamp-2 leading-relaxed">
+                        {img.caption}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* SPEAKERS + UPCOMING SESSION */}
       <section className="relative py-24 bg-surface">

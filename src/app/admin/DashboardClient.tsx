@@ -34,6 +34,9 @@ import {
   dbGetSiteSettings,
   dbSaveSiteSettings,
   dbUploadFile,
+  dbGetGalleryImages,
+  dbSaveGalleryImage,
+  dbDeleteGalleryImage,
   AdminUser,
   Application,
   Contact,
@@ -46,6 +49,7 @@ import {
   Speaker,
   TeamMember,
   SiteSettings,
+  GalleryImage,
 } from "@/lib/db";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -88,6 +92,7 @@ import {
   Mail,
   Settings,
   Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 
 interface DashboardClientProps {
@@ -105,7 +110,8 @@ type TabType =
   | "partners"
   | "speakers"
   | "team"
-  | "settings";
+  | "settings"
+  | "gallery";
 
 export default function DashboardClient({ user }: DashboardClientProps) {
   const [activeTab, setActiveTab] = useState<TabType>("applications");
@@ -123,6 +129,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
   const [cmsLoading, setCmsLoading] = useState(false);
 
@@ -141,6 +148,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     | "partner"
     | "speaker"
     | "team"
+    | "gallery"
     | null
   >(null);
   const [editingItem, setEditingItem] = useState<
@@ -152,6 +160,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     | Partner
     | Speaker
     | TeamMember
+    | GalleryImage
     | null
   >(null);
   const [modalLoading, setModalLoading] = useState(false);
@@ -222,6 +231,16 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [settingsForm, setSettingsForm] = useState({
     heroFile: null as File | null,
     aboutHeroUrl: "",
+    logoFile: null as File | null,
+    logoUrl: "",
+    heroBgFile: null as File | null,
+    heroBgUrl: "",
+  });
+
+  const [galleryForm, setGalleryForm] = useState({
+    caption: "",
+    imageFile: null as File | null,
+    imageUrl: "",
   });
 
   // Load Realtime Data
@@ -253,6 +272,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       const spks = await dbGetSpeakers();
       const tms = await dbGetTeamMembers();
       const settings = await dbGetSiteSettings();
+      const gals = await dbGetGalleryImages();
 
       setPrograms([...progs].sort((a, b) => (a.order || 0) - (b.order || 0)));
       setSessions([...sesss].sort((a, b) => (a.order || 0) - (b.order || 0)));
@@ -262,6 +282,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       setPartners([...parts].sort((a, b) => (a.order || 0) - (b.order || 0)));
       setSpeakers([...spks].sort((a, b) => (a.order || 0) - (b.order || 0)));
       setTeamMembers([...tms].sort((a, b) => (a.order || 0) - (b.order || 0)));
+      setGalleryImages(
+        [...gals].sort((a, b) => (a.order || 0) - (b.order || 0)),
+      );
       setSiteSettings(settings);
     } catch (e) {
       console.error("Error loading CMS data:", e);
@@ -291,7 +314,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       | "social"
       | "partner"
       | "speaker"
-      | "team",
+      | "team"
+      | "gallery",
   ) => {
     setModalType(type);
     setEditingItem(null);
@@ -340,6 +364,11 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       pictureFile: null,
       pictureUrl: "",
     });
+    setGalleryForm({
+      caption: "",
+      imageFile: null,
+      imageUrl: "",
+    });
   };
 
   // Open Edit Modal
@@ -352,7 +381,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       | "social"
       | "partner"
       | "speaker"
-      | "team",
+      | "team"
+      | "gallery",
     item:
       | Program
       | Session
@@ -361,7 +391,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       | SocialLink
       | Partner
       | Speaker
-      | TeamMember,
+      | TeamMember
+      | GalleryImage,
   ) => {
     setModalType(type);
     setEditingItem(item);
@@ -436,6 +467,13 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         twitterUrl: tm.twitterUrl || "",
         pictureUrl: tm.pictureUrl || "",
         pictureFile: null,
+      });
+    } else if (type === "gallery") {
+      const img = item as GalleryImage;
+      setGalleryForm({
+        caption: img.caption || "",
+        imageUrl: img.url || "",
+        imageFile: null,
       });
     }
   };
@@ -530,11 +568,21 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           twitterUrl: teamForm.twitterUrl,
           pictureUrl,
         });
+      } else if (modalType === "gallery") {
+        let url = galleryForm.imageUrl;
+        if (galleryForm.imageFile) {
+          url = await dbUploadFile(galleryForm.imageFile, "gallery");
+        }
+        await dbSaveGalleryImage({
+          ...basePayload,
+          caption: galleryForm.caption,
+          url,
+        });
       }
       setIsModalOpen(false);
       await loadCMS();
     } catch (err) {
-      console.error(err);
+      console.warn("CMS save warning:", err);
       alert("Failed to save content. Please try again.");
     } finally {
       setModalLoading(false);
@@ -551,7 +599,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       | "social"
       | "partner"
       | "speaker"
-      | "team",
+      | "team"
+      | "gallery",
     id: string | undefined,
   ) => {
     if (!id) return;
@@ -570,6 +619,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       else if (type === "partner") await dbDeletePartner(id);
       else if (type === "speaker") await dbDeleteSpeaker(id);
       else if (type === "team") await dbDeleteTeamMember(id);
+      else if (type === "gallery") await dbDeleteGalleryImage(id);
       await loadCMS();
     } catch (e) {
       console.error(e);
@@ -612,7 +662,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       | "partners"
       | "speakers"
       | "team"
-      | "settings";
+      | "settings"
+      | "gallery";
     label: string;
     Icon: ComponentType<{ className?: string }>;
     count?: number;
@@ -639,6 +690,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     { id: "partners", label: "CMS: Partners", Icon: Building },
     { id: "speakers", label: "CMS: Speakers", Icon: Presentation },
     { id: "team", label: "CMS: Team", Icon: Users },
+    { id: "gallery", label: "CMS: Gallery", Icon: ImageIcon },
     { id: "settings", label: "Settings", Icon: Settings },
   ];
 
@@ -756,8 +808,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 "Manage upcoming and past speakers for sessions."}
               {activeTab === "team" &&
                 "Manage team members displayed on the About page."}
+              {activeTab === "gallery" &&
+                "Manage moments of impact gallery pictures."}
               {activeTab === "settings" &&
-                "Manage global site settings like hero background images."}
+                "Manage global site settings like website logo and hero background images."}
             </p>
           </div>
 
@@ -774,6 +828,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               "partners",
               "speakers",
               "team",
+              "gallery",
             ].includes(activeTab) && (
               <button
                 onClick={() => {
@@ -785,6 +840,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   else if (activeTab === "partners") openAddModal("partner");
                   else if (activeTab === "speakers") openAddModal("speaker");
                   else if (activeTab === "team") openAddModal("team");
+                  else if (activeTab === "gallery") openAddModal("gallery");
                 }}
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-elegant hover:shadow-glow transition-all"
               >
@@ -1702,7 +1758,71 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           </div>
         )}
 
-        {/* 11. SETTINGS TAB */}
+        {/* 11. GALLERY CMS TAB */}
+        {activeTab === "gallery" && (
+          <div className="space-y-6">
+            {cmsLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : galleryImages.length === 0 ? (
+              <div className="text-center py-20 border border-dashed border-border rounded-3xl">
+                <ImageIcon className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-foreground">
+                  No gallery images configured
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add your first moment of impact picture above.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {galleryImages.map((img) => (
+                  <div
+                    key={img.id}
+                    className="rounded-xl border border-border bg-card/45 p-5 shadow-card hover:border-primary/20 transition-all flex flex-col justify-between"
+                  >
+                    <div className="space-y-3">
+                      {img.url && (
+                        <div className="h-32 w-full rounded border border-border overflow-hidden">
+                          <img
+                            src={img.url}
+                            alt={img.caption || "Gallery"}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm text-foreground leading-relaxed mt-2 font-medium line-clamp-2">
+                          {img.caption || "No caption"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-1.5 mt-5 pt-3 border-t border-border/40">
+                      <button
+                        onClick={() => openEditModal("gallery", img)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-foreground hover:bg-card transition-all"
+                        title="Edit Gallery Image"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete("gallery", img.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-all"
+                        title="Delete Gallery Image"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 12. SETTINGS TAB */}
         {activeTab === "settings" && (
           <div className="space-y-6 max-w-2xl">
             <div className="rounded-2xl border border-border bg-card/45 p-6 shadow-card">
@@ -1719,15 +1839,38 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                         "settings",
                       );
                     }
+                    let logoUrl = siteSettings?.logoUrl || "";
+                    if (settingsForm.logoFile) {
+                      logoUrl = await dbUploadFile(
+                        settingsForm.logoFile,
+                        "settings",
+                      );
+                    }
+                    let heroBgUrl = siteSettings?.heroBgUrl || "";
+                    if (settingsForm.heroBgFile) {
+                      heroBgUrl = await dbUploadFile(
+                        settingsForm.heroBgFile,
+                        "settings",
+                      );
+                    }
                     await dbSaveSiteSettings({
                       ...(siteSettings || {}),
                       aboutHeroUrl,
+                      logoUrl,
+                      heroBgUrl,
                     });
-                    setSettingsForm({ heroFile: null, aboutHeroUrl });
+                    setSettingsForm({
+                      heroFile: null,
+                      aboutHeroUrl,
+                      logoFile: null,
+                      logoUrl,
+                      heroBgFile: null,
+                      heroBgUrl,
+                    });
                     await loadCMS();
                     alert("Settings saved successfully.");
                   } catch (err) {
-                    console.error(err);
+                    console.warn("Settings save failed:", err);
                     alert("Failed to save settings.");
                   } finally {
                     setCmsLoading(false);
@@ -1735,6 +1878,87 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 }}
                 className="space-y-4"
               >
+                {/* Website Logo Image */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Website Logo Image
+                  </label>
+                  {siteSettings?.logoUrl && (
+                    <div className="mb-2 h-16 w-32 rounded-xl border border-border overflow-hidden bg-background/50 flex items-center justify-center p-2">
+                      <img
+                        src={siteSettings.logoUrl}
+                        alt="Logo Preview"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl cursor-pointer hover:bg-primary/10 transition-colors text-sm font-medium">
+                      <Upload className="h-4 w-4" />
+                      Choose Logo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setSettingsForm({
+                              ...settingsForm,
+                              logoFile: e.target.files[0],
+                            });
+                          }
+                        }}
+                      />
+                    </label>
+                    <span className="text-sm text-muted-foreground">
+                      {settingsForm.logoFile
+                        ? settingsForm.logoFile.name
+                        : "No new logo selected"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Homepage Hero Background Image */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Homepage Hero Background Image
+                  </label>
+                  {siteSettings?.heroBgUrl && (
+                    <div className="mb-2 w-full h-32 rounded-xl border border-border overflow-hidden bg-background/50">
+                      <img
+                        src={siteSettings.heroBgUrl}
+                        alt="Hero Background Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl cursor-pointer hover:bg-primary/10 transition-colors text-sm font-medium">
+                      <Upload className="h-4 w-4" />
+                      Choose Hero BG
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setSettingsForm({
+                              ...settingsForm,
+                              heroBgFile: e.target.files[0],
+                            });
+                          }
+                        }}
+                      />
+                    </label>
+                    <span className="text-sm text-muted-foreground">
+                      {settingsForm.heroBgFile
+                        ? settingsForm.heroBgFile.name
+                        : "No new hero BG selected"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* About Page Hero Background Image */}
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     About Page Hero Background Image
@@ -2557,8 +2781,64 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 </div>
               )}
 
+              {/* GALLERY FORM FIELDS */}
+              {modalType === "gallery" && (
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Caption
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={galleryForm.caption}
+                      onChange={(e) =>
+                        setGalleryForm({
+                          ...galleryForm,
+                          caption: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. Moments of Impact graduation ceremony"
+                      className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Gallery Picture File
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl cursor-pointer hover:bg-primary/10 transition-colors text-sm font-medium">
+                        <Upload className="h-4 w-4" />
+                        Choose Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setGalleryForm({
+                                ...galleryForm,
+                                imageFile: e.target.files[0],
+                              });
+                            }
+                          }}
+                        />
+                      </label>
+                      <span className="text-sm text-muted-foreground truncate max-w-[200px]">
+                        {galleryForm.imageFile
+                          ? galleryForm.imageFile.name
+                          : galleryForm.imageUrl
+                            ? "Existing Image"
+                            : "No file selected"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-border">
+              <div className="flex justify-end gap-3 pt-4 border-t border-border text-right">
                 <button
                   type="button"
                   disabled={modalLoading}

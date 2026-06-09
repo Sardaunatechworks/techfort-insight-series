@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
+import { dbGetSiteSettings, type SiteSettings } from "@/lib/db";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -13,6 +14,7 @@ const nav = [
   { to: "/research", label: "Research" },
   { to: "/community", label: "Community" },
   { to: "/partners", label: "Partners" },
+  { to: "/gallery", label: "Gallery" },
   { to: "/resources", label: "Resources" },
   { to: "/contact", label: "Contact" },
 ] as const;
@@ -21,12 +23,29 @@ export function Header() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadSettings = async () => {
+      const settings = await dbGetSiteSettings();
+      if (active) {
+        setSiteSettings(settings);
+      }
+    };
+    loadSettings();
+    window.addEventListener("tf_mock_storage_change", loadSettings);
+    return () => {
+      active = false;
+      window.removeEventListener("tf_mock_storage_change", loadSettings);
+    };
   }, []);
 
   if (pathname.startsWith("/admin")) return null;
@@ -44,20 +63,32 @@ export function Header() {
           }`}
         >
           <Link href="/" className="flex items-center gap-2.5 group">
-            <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary shadow-elegant">
-              <span className="absolute inset-0 rounded-xl bg-gradient-accent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="relative font-display font-bold text-primary-foreground text-sm">
-                TF
-              </span>
-            </span>
-            <span className="flex flex-col leading-tight">
-              <span className="font-display font-semibold text-[15px] text-foreground tracking-tight">
-                TechFort <span className="text-primary">Insight</span>
-              </span>
-              <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                Insight Series
-              </span>
-            </span>
+            {siteSettings?.logoUrl ? (
+              <div className="relative h-9 w-auto flex items-center">
+                <img
+                  src={siteSettings.logoUrl}
+                  alt="TechFort Logo"
+                  className="h-9 w-auto object-contain max-w-[150px]"
+                />
+              </div>
+            ) : (
+              <>
+                <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary shadow-elegant">
+                  <span className="absolute inset-0 rounded-xl bg-gradient-accent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span className="relative font-display font-bold text-primary-foreground text-sm">
+                    TF
+                  </span>
+                </span>
+                <span className="flex flex-col leading-tight">
+                  <span className="font-display font-semibold text-[15px] text-foreground tracking-tight">
+                    TechFort <span className="text-primary">Insight</span>
+                  </span>
+                  <span className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                    Insight Series
+                  </span>
+                </span>
+              </>
+            )}
           </Link>
 
           <nav className="hidden lg:flex items-center gap-1">

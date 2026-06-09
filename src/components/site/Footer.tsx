@@ -12,7 +12,12 @@ import {
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { dbGetSocialLinks, type SocialLink } from "@/lib/db";
+import {
+  dbGetSocialLinks,
+  dbGetSiteSettings,
+  type SocialLink,
+  type SiteSettings,
+} from "@/lib/db";
 
 const cols = [
   {
@@ -57,9 +62,11 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 export function Footer() {
   const pathname = usePathname();
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
   useEffect(() => {
     let active = true;
+
     const load = async () => {
       const links = await dbGetSocialLinks();
       if (active) {
@@ -68,9 +75,20 @@ export function Footer() {
     };
     load();
     window.addEventListener("tf_mock_storage_change", load);
+
+    const loadSettings = async () => {
+      const settings = await dbGetSiteSettings();
+      if (active) {
+        setSiteSettings(settings);
+      }
+    };
+    loadSettings();
+    window.addEventListener("tf_mock_storage_change", loadSettings);
+
     return () => {
       active = false;
       window.removeEventListener("tf_mock_storage_change", load);
+      window.removeEventListener("tf_mock_storage_change", loadSettings);
     };
   }, []);
 
@@ -83,19 +101,32 @@ export function Footer() {
         <div className="grid gap-12 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <div className="flex items-center gap-2.5">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary shadow-elegant">
-                <span className="font-display font-bold text-primary-foreground">
-                  TF
-                </span>
-              </span>
-              <div>
-                <div className="font-display font-semibold text-foreground">
-                  TechFort <span className="text-primary">Insight Series</span>
+              {siteSettings?.logoUrl ? (
+                <div className="relative h-10 w-auto flex items-center">
+                  <img
+                    src={siteSettings.logoUrl}
+                    alt="TechFort Logo"
+                    className="h-10 w-auto object-contain max-w-[150px]"
+                  />
                 </div>
-                <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                  Building Africa's AI Future
-                </div>
-              </div>
+              ) : (
+                <>
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary shadow-elegant">
+                    <span className="font-display font-bold text-primary-foreground">
+                      TF
+                    </span>
+                  </span>
+                  <div>
+                    <div className="font-display font-semibold text-foreground">
+                      TechFort{" "}
+                      <span className="text-primary">Insight Series</span>
+                    </div>
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                      Building Africa's AI Future
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
             <p className="mt-5 max-w-md text-sm leading-relaxed text-muted-foreground">
               A continental AI literacy ecosystem democratizing access to
