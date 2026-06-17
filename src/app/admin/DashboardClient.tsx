@@ -37,6 +37,7 @@ import {
   dbGetGalleryImages,
   dbSaveGalleryImage,
   dbDeleteGalleryImage,
+  isMockMode,
   AdminUser,
   Application,
   Contact,
@@ -763,6 +764,11 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 <div className="text-[10px] text-muted-foreground truncate">
                   Admin Session
                 </div>
+                {isMockMode() && (
+                  <span className="inline-block mt-0.5 text-[9px] font-bold text-amber-500 uppercase tracking-wide bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
+                    Offline / Mock DB
+                  </span>
+                )}
               </div>
             </div>
             <button
@@ -778,6 +784,27 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
       {/* Main Workspace */}
       <main className="flex-1 overflow-y-auto px-8 py-10">
+        {isMockMode() && (
+          <div className="mb-8 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-600 dark:text-amber-500 flex items-start gap-3">
+            <span className="text-lg leading-none mt-0.5">⚠️</span>
+            <div>
+              <h4 className="font-semibold text-[15px] leading-tight">
+                Local Storage Mode is Active
+              </h4>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                The application is running in mock database mode because it
+                couldn't establish a valid connection to Supabase (check your{" "}
+                <code className="text-[11px] font-mono bg-amber-500/10 px-1 py-0.5 rounded">
+                  .env
+                </code>{" "}
+                or environment variables). Any changes you make here will be
+                saved <strong>only to this browser's local storage</strong>.
+                They will not sync to other computers, nor will they appear on
+                the live global website.
+              </p>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <header className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8 pb-6 border-b border-border">
           <div>
