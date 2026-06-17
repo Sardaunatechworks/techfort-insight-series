@@ -27,9 +27,13 @@ import {
   dbGetPartners,
   dbGetGalleryImages,
   dbGetSiteSettings,
+  dbGetPrograms,
+  dbGetSpeakers,
   type Partner,
   type GalleryImage,
   type SiteSettings,
+  type Program,
+  type Speaker,
 } from "@/lib/db";
 import { AnimatePresence } from "framer-motion";
 
@@ -73,7 +77,7 @@ const focusAreas = [
   },
 ];
 
-const programs = [
+const defaultPrograms = [
   {
     tag: "Flagship",
     title: "AI SENSE",
@@ -106,15 +110,31 @@ const programs = [
   },
 ];
 
-const speakers = [
-  { name: "AI Governance Lead", role: "DSAPI · Continental", initial: "A" },
+const defaultSpeakers = [
+  {
+    name: "AI Governance Lead",
+    role: "DSAPI · Continental",
+    initial: "A",
+    pictureUrl: undefined,
+  },
   {
     name: "Emerging Tech Mentor",
     role: "From Curiosity to Creation",
     initial: "E",
+    pictureUrl: undefined,
   },
-  { name: "Research Fellow", role: "TechFort Lab", initial: "R" },
-  { name: "Community Lead", role: "AI SENSE", initial: "C" },
+  {
+    name: "Research Fellow",
+    role: "TechFort Lab",
+    initial: "R",
+    pictureUrl: undefined,
+  },
+  {
+    name: "Community Lead",
+    role: "AI SENSE",
+    initial: "C",
+    pictureUrl: undefined,
+  },
 ];
 
 const testimonials = [
@@ -142,6 +162,8 @@ export default function Home() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
+  const [programsData, setProgramsData] = useState<Program[]>([]);
+  const [speakersData, setSpeakersData] = useState<Speaker[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -151,6 +173,8 @@ export default function Home() {
         const partnersData = await dbGetPartners();
         const galleryData = await dbGetGalleryImages();
         const settingsData = await dbGetSiteSettings();
+        const progsData = await dbGetPrograms();
+        const spksData = await dbGetSpeakers();
 
         if (active) {
           setPartners(
@@ -160,6 +184,8 @@ export default function Home() {
             [...galleryData].sort((a, b) => (a.order || 0) - (b.order || 0)),
           );
           setSiteSettings(settingsData);
+          setProgramsData(progsData);
+          setSpeakersData(spksData);
         }
       } catch (error) {
         console.error("Failed to load homepage dynamic CMS data:", error);
@@ -174,6 +200,30 @@ export default function Home() {
       window.removeEventListener("tf_mock_storage_change", loadData);
     };
   }, []);
+
+  const displayPrograms =
+    programsData.length > 0
+      ? [...programsData]
+          .sort((a, b) => (a.order || 0) - (b.order || 0))
+          .map((p) => ({
+            tag: p.tag,
+            title: p.title,
+            desc: p.overview,
+            stat: p.impact,
+          }))
+      : defaultPrograms;
+
+  const displaySpeakers =
+    speakersData.length > 0
+      ? [...speakersData]
+          .sort((a, b) => (a.order || 0) - (b.order || 0))
+          .map((s) => ({
+            name: s.name,
+            role: s.theme || s.shortBio,
+            initial: s.name ? s.name[0] : "S",
+            pictureUrl: s.pictureUrl,
+          }))
+      : defaultSpeakers;
 
   return (
     <>
@@ -442,8 +492,8 @@ export default function Home() {
           </FadeIn>
 
           <div className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {programs.map((p, i) => (
-              <FadeIn key={p.title} delay={i * 0.05}>
+            {displayPrograms.map((p, i) => (
+              <FadeIn key={p.title || i} delay={i * 0.05}>
                 <article className="group relative h-full overflow-hidden rounded-3xl border border-border bg-card p-8 shadow-card hover:shadow-elegant hover:-translate-y-1 transition-all">
                   <div className="flex items-center justify-between">
                     <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
@@ -558,12 +608,20 @@ export default function Home() {
               />
             </FadeIn>
             <div className="mt-10 grid sm:grid-cols-2 gap-4">
-              {speakers.map((s, i) => (
-                <FadeIn key={s.name} delay={i * 0.05}>
+              {displaySpeakers.map((s, i) => (
+                <FadeIn key={s.name || i} delay={i * 0.05}>
                   <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all">
-                    <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-primary text-primary-foreground font-display font-bold text-lg shadow-elegant">
-                      {s.initial}
-                    </span>
+                    {"pictureUrl" in s && s.pictureUrl ? (
+                      <img
+                        src={s.pictureUrl}
+                        alt={s.name}
+                        className="h-14 w-14 rounded-2xl object-cover shadow-elegant"
+                      />
+                    ) : (
+                      <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-primary text-primary-foreground font-display font-bold text-lg shadow-elegant">
+                        {s.initial}
+                      </span>
+                    )}
                     <div>
                       <div className="font-semibold text-foreground">
                         {s.name}
