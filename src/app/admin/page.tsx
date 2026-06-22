@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { dbOnAuthStateChanged, dbLogin, isMockMode, AdminUser } from "@/lib/db";
+import { dbOnAuthStateChanged, dbLogin, AdminUser } from "@/lib/db";
 import type { User } from "@supabase/supabase-js";
 import DashboardClient from "./DashboardClient";
 import { Loader2, Lock, Mail, Key, Shield } from "lucide-react";
@@ -13,11 +13,9 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mockActive, setMockActive] = useState(false);
 
   useEffect(() => {
     document.title = "Admin Portal — TechFort Insight Hub";
-    setMockActive(isMockMode());
 
     const unsubscribe = dbOnAuthStateChanged((currentUser) => {
       setUser(currentUser);
@@ -82,25 +80,6 @@ export default function AdminPage() {
               Sign in to access your dashboard
             </p>
           </div>
-
-          {mockActive && (
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-600 dark:text-amber-500 leading-normal flex flex-col gap-1">
-              <span className="font-bold flex items-center gap-1.5">
-                ⚠️ Local Storage Mode Active
-              </span>
-              <span className="text-muted-foreground leading-relaxed">
-                No active database connection detected. You can log in using{" "}
-                <code className="text-amber-600 dark:text-amber-500 font-semibold font-mono bg-amber-500/10 px-1 py-0.5 rounded">
-                  admin@techfort.org
-                </code>{" "}
-                /{" "}
-                <code className="text-amber-600 dark:text-amber-500 font-semibold font-mono bg-amber-500/10 px-1 py-0.5 rounded">
-                  admin123
-                </code>
-                , but changes will only save locally in this browser.
-              </span>
-            </div>
-          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
